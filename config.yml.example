@@ -1,0 +1,51 @@
+---
+ca:
+  path: /etc/pki/repospanner
+admin:
+  url:  https://nodea.regiona.repospanner.local/
+  ca:   /etc/pki/repospanner/ca.crt
+  cert: /etc/pki/repospanner/admin.crt
+  key:  /etc/pki/repospanner/admin.key
+storage:
+  state: /var/lib/repospanner/state
+  git:
+    type: tree
+    clustered: true
+    directory: /var/lib/repospanner/gitstore
+listen:
+  rpc:  0.0.0.0:8443
+  http: 0.0.0.0:443
+certificates:
+  ca: /etc/pki/repospanner/ca.crt
+  client:
+    cert: /etc/pki/repospanner/nodea.regiona.crt
+    key:  /etc/pki/repospanner/nodea.regiona.key
+  server:
+    default:
+      cert: /etc/pki/repospanner/nodea.regiona.crt
+      key:  /etc/pki/repospanner/nodea.regiona.key
+    git.example.com:
+      cert: /etc/pki/repospanner/public.crt
+      key:  /etc/pki/repospanner/public.key
+hooks:
+  bubblewrap:
+    enabled: true
+    unshare:
+    - net
+    - ipc
+    - pid
+    - uts
+    share_net: false
+    mount_proc: true
+    mount_dev: true
+    uid:
+    gid:
+    hostname: myhostname
+    bind:
+    ro_bind:
+      /usr: /usr
+    symlink:
+      usr/lib64: /lib64
+      usr/bin: /bin
+  runner: /usr/bin/repohookrunner
+  user: 0

@@ -1,0 +1,31 @@
+[[constraint]]
+  name = "github.com/golang/protobuf"
+  version = "^1.0.0"
+
+[[constraint]]
+  name = "github.com/spf13/cobra"
+  version = "0.0.3"
+
+[[constraint]]
+  name = "github.com/spf13/viper"
+  version = "^1.0.0"
+
+[[constraint]]
+  branch = "release-branch.go1.10"
+  name = "golang.org/x/net"
+
+[[constraint]]
+  name = "github.com/coreos/etcd"
+  version = "~3.3.7"
+
+[[constraint]]
+  name = "go.uber.org/zap"
+  version = "^1.8.0"
+
+[[constraint]]
+  name = "github.com/pkg/errors"
+  version = "~0.8.0"
+
+[[constraint]]
+  name = "github.com/mattn/go-sqlite3"
+  version = "^1.9.0"

@@ -1,0 +1,7 @@
+[Unit]
+Description=repoSpanner
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/repospanner serve

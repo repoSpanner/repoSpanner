@@ -1,0 +1,45 @@
+syntax = "proto2";
+
+package protobuf;
+
+message UpdateRequest {
+    required string ref = 1;
+    required string from = 2;
+    required string to = 3;
+}
+
+message PushRequest {
+    required uint64 pushnode = 1;
+    required int64 pushtime = 2;
+    required int64 pushid = 3;
+    required string reponame = 4;
+    repeated UpdateRequest requests = 5;
+}
+
+message NewRepoRequest {
+    required string reponame = 1;
+    required bool public = 2;
+}
+
+message EditRepoRequest {
+    required string reponame = 1;
+    required bytes updaterequest = 2;
+}
+
+message DeleteRepoRequest {
+    required string reponame = 1;
+}
+
+message ChangeRequest {
+    enum ChangeRequestType {
+        NEWREPO = 1;
+        EDITREPO = 2;
+        // DELETEREPO = 3;  // This is not yet implemented
+        PUSHREQUEST = 4;
+    }
+    required ChangeRequestType ctype = 1;
+    optional NewRepoRequest newreporeq = 2;
+    optional EditRepoRequest editreporeq = 3;
+    optional DeleteRepoRequest deletereporeq = 4;
+    optional PushRequest pushreq = 5;
+}
