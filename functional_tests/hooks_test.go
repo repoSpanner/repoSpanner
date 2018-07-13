@@ -1,11 +1,16 @@
 package functional_tests
 
 import (
+	"os/exec"
 	"strings"
 	"testing"
 )
 
 func TestBWrapHook(t *testing.T) {
+	_, err := exec.LookPath("bwrap")
+	if err != nil {
+		t.Skip("BWrap not installed, skipping bwrap hook test")
+	}
 	useBubbleWrap = true
 	runForTestedCloneMethods(t, performHookTest)
 }
