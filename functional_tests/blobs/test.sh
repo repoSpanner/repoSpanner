@@ -10,5 +10,3 @@ cat </dev/stdin
 echo "STDIN DONE"
 echo "LS /"
 ls /
-echo "IP A L"
-ip a l

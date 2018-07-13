@@ -6,16 +6,20 @@ import (
 )
 
 func TestBWrapHook(t *testing.T) {
-	runForTestedCloneMethods(t, performBWrapHookTest)
+	useBubbleWrap = true
+	runForTestedCloneMethods(t, performHookTest)
 }
 
-func performBWrapHookTest(t *testing.T, method cloneMethod) {
+func TestPlainHook(t *testing.T) {
+	useBubbleWrap = false
+	runForTestedCloneMethods(t, performHookTest)
+}
+
+func performHookTest(t *testing.T, method cloneMethod) {
 	defer testCleanup(t)
 	nodea := nodeNrType(1)
 	nodeb := nodeNrType(2)
 	nodec := nodeNrType(3)
-
-	useBubbleWrap = true
 
 	createNodes(t, nodea, nodeb, nodec)
 
@@ -34,11 +38,20 @@ func performBWrapHookTest(t *testing.T, method cloneMethod) {
 	if !strings.Contains(out, "RUNNING HOOK") {
 		t.Fatal("Hook did not run")
 	}
-	if !strings.Contains(out, "PS: 3") {
-		t.Fatal("Did not get bubble wrapped")
-	}
-	if !strings.Contains(out, "Hostname: myhostname") {
-		t.Fatal("Did not get bubble wrapped")
+	if useBubbleWrap {
+		if !strings.Contains(out, "PS: 3") {
+			t.Fatal("Did not get bubble wrapped")
+		}
+		if !strings.Contains(out, "Hostname: myhostname") {
+			t.Fatal("Did not get bubble wrapped")
+		}
+	} else {
+		if strings.Contains(out, "PS: 3") {
+			t.Fatal("Did get bubble wrapped")
+		}
+		if strings.Contains(out, "Hostname: myhostname") {
+			t.Fatal("Did get bubble wrapped")
+		}
 	}
 
 	writeTestFiles(t, wdir, 3, 3)
