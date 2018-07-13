@@ -39,7 +39,7 @@ func getCertPoolFromFile(pemfile string) (*x509.CertPool, error) {
 	return certpool, nil
 }
 
-var versionregex = regexp.MustCompile("^go([0-9]+)\\.([0-9]+)\\.")
+var versionregex = regexp.MustCompile("^go([0-9]+)\\.([0-9]+)(\\.)?")
 
 // IsAtLeastGo110 returns whether the current binary is compiled on a Golang newer than
 // Version 1.10, and whether it is sure about this.
