@@ -9,10 +9,13 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"repospanner.org/repospanner/server/service"
 )
 
 var (
@@ -47,17 +50,24 @@ func setBinaryPaths(t *testing.T) {
 	binary = possiblebinary
 	clientbinary = possibleclientbinary
 	hookrunnerbinary = possiblehookrunnerbinary
+
+	atleast110, sure := service.IsAtLeastGo110(runtime.Version())
+	if sure && !atleast110 {
+		skipNameConstraints = true
+	}
 }
 
 const (
 	testCluster = "repospanner.local"
 	testRegion  = "regiona"
 
-	insecureKeysFlag = "--very-insecure-weak-keys"
+	insecureKeysFlag       = "--very-insecure-weak-keys"
+	skipNameConstraintFlag = "--no-name-constraint"
 )
 
 var (
 	skipRemovingTestDir = os.Getenv("REPOSPANNER_FUNCTIONAL_NO_REMOVE") != ""
+	skipNameConstraints bool
 )
 
 type nodeState struct {
@@ -509,7 +519,11 @@ func createTestCA(t *testing.T) {
 
 	createTestConfig(t, "ca", 0)
 
-	out := runCommand(t, "ca", "ca", "init", testCluster, insecureKeysFlag)
+	cmd := []string{"ca", "init", testCluster, insecureKeysFlag}
+	if skipNameConstraints {
+		cmd = append(cmd, skipNameConstraintFlag)
+	}
+	out := runCommand(t, "ca", cmd...)
 
 	if !strings.Contains(out, "WEAK KEY GENERATION USED") {
 		t.Fatal("Weak key usage warning not printed")
