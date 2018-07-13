@@ -4,20 +4,17 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path"
 	"strings"
 	"syscall"
 
 	"github.com/spf13/viper"
-	"go.uber.org/zap"
 
 	"repospanner.org/repospanner/server/service"
 )
 
 var (
-	logger   *zap.SugaredLogger
 	username string
 )
 
@@ -27,10 +24,6 @@ func exitWithError(errmsg string, extra ...interface{}) {
 	// Send a plain (non-sidebanded) git packet.
 	// The only moment that this would be wrong
 	service.SendPacketWithFlush(os.Stdout, []byte("ERR "+errmsg))
-
-	if logger != nil {
-		logger.Infow(errmsg, extra...)
-	}
 	os.Exit(1)
 }
 
@@ -83,10 +76,7 @@ func checkConfigured(options ...string) {
 	for _, opt := range options {
 		if !viper.IsSet(opt) {
 			missing = true
-			logger.Errorw(
-				"Required option not configured",
-				"option", opt,
-			)
+			fmt.Fprintln(os.Stderr, "Required option not configured:", opt)
 		}
 	}
 	if missing {
@@ -95,7 +85,22 @@ func checkConfigured(options ...string) {
 }
 
 func ExecuteClient() {
-	logger = initLogging()
+	username = os.Getenv("USER")
+	cfgFile := os.Getenv("REPOCLIENT_CONFIG")
+	if username == "" {
+		exitWithError("Unable to determine username")
+		os.Exit(1)
+	}
+	viper.SetConfigName("client_config")
+	if cfgFile != "" {
+		viper.SetConfigFile(cfgFile)
+	} else {
+		viper.AddConfigPath("/etc/repospanner")
+	}
+	if err := viper.ReadInConfig(); err != nil {
+		exitWithError("Unable to read config file")
+		os.Exit(1)
+	}
 
 	// Just call this to make sure we abort loudly early on if the user has no access
 	getCertAndKey()
@@ -121,11 +126,6 @@ func ExecuteClient() {
 		exitWithError("Invalid call arguments", "len", len(os.Args))
 	}
 
-	logger = logger.With(
-		"command", command,
-		"repo", repo,
-	)
-
 	if command != "receive-pack" && command != "upload-pack" {
 		exitWithError("Invalid call")
 	}
@@ -144,7 +144,6 @@ func ExecuteClient() {
 
 		isdone, r := shouldClose(os.Stdin)
 		if isdone {
-			logger.Debug("Client sent flush, terminating")
 			os.Exit(0)
 		}
 
@@ -167,10 +166,6 @@ func shouldClose(r io.ReadCloser) (bool, io.ReadCloser) {
 	if n != 4 {
 		exitWithError("Not enough bytes read to determine close status")
 	}
-	logger.Debugw(
-		"PossibleCloser read",
-		"buffer", string(buf),
-	)
 	buffer := bytes.NewBuffer(buf)
 	combined := &splitReadCloser{
 		r: io.MultiReader(buffer, r),
@@ -201,60 +196,4 @@ func getCertAndKey() (string, string) {
 	// Seems there was no configuration for this user, nor default... Abandon all attempts
 	exitWithError("User does not have access to this client")
 	return "", ""
-}
-
-func initLogging() *zap.SugaredLogger {
-	username = os.Getenv("USER")
-	client := os.Getenv("SSH_CLIENT")
-	logdebug := os.Getenv("REPOCLIENT_LOG_DEBUG") != ""
-	cfgFile := os.Getenv("REPOCLIENT_CONFIG")
-
-	if username == "" {
-		exitWithError("Unable to determine username")
-		os.Exit(1)
-	}
-
-	viper.SetConfigName("client_config")
-	if cfgFile != "" {
-		viper.SetConfigFile(cfgFile)
-	} else {
-		viper.AddConfigPath("/etc/repospanner")
-	}
-
-	if err := viper.ReadInConfig(); err != nil {
-		exitWithError("Unable to read config file")
-		os.Exit(1)
-	}
-
-	var logconfig zap.Config
-	if logdebug || viper.GetBool("log.debug") {
-		logconfig = zap.NewDevelopmentConfig()
-	} else {
-		logconfig = zap.NewProductionConfig()
-	}
-	destdir := viper.GetString("log.destdir")
-	if destdir == "" {
-		exitWithError("Config file incomplete")
-		os.Exit(1)
-	}
-	destfile, err := ioutil.TempFile(destdir, "log_")
-	if err != nil {
-		exitWithError("Error opening log file")
-		os.Exit(1)
-	}
-	logconfig.OutputPaths = []string{
-		destfile.Name(),
-	}
-
-	rlogger, err := logconfig.Build()
-	if err != nil {
-		exitWithError("Error preparing logging")
-		os.Exit(1)
-	}
-	logger := rlogger.Sugar().With(
-		"username", username,
-		"client", client,
-		"args", os.Args,
-	)
-	return logger
 }

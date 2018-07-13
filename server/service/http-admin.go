@@ -150,8 +150,6 @@ func (cfg *Service) serveAdminHooksMgmt(w http.ResponseWriter, r *http.Request) 
 	}
 	w.WriteHeader(200)
 
-	cfg.log.Infow("Headers", "header", r.Header)
-
 	sizes := r.Header["X-Object-Size"]
 	if len(sizes) != 1 {
 		cfg.log.Info("Missing object size")
@@ -163,11 +161,6 @@ func (cfg *Service) serveAdminHooksMgmt(w http.ResponseWriter, r *http.Request) 
 	}
 	size, err := strconv.Atoi(sizes[0])
 	if err != nil {
-		cfg.log.Infow(
-			"Invalid size",
-			"sizes", sizes,
-			"error", err,
-		)
 		cfg.respondJSONResponse(w, datastructures.CommandResponse{
 			Success: false,
 			Error:   err.Error(),
@@ -182,10 +175,6 @@ func (cfg *Service) serveAdminHooksMgmt(w http.ResponseWriter, r *http.Request) 
 		uint(size),
 	)
 	if err != nil {
-		cfg.log.Infow(
-			"Error copying hook file",
-			"error", err,
-		)
 		cfg.respondJSONResponse(w, datastructures.CommandResponse{
 			Success: false,
 			Error:   err.Error(),
@@ -194,10 +183,6 @@ func (cfg *Service) serveAdminHooksMgmt(w http.ResponseWriter, r *http.Request) 
 	}
 	written, err := io.Copy(stg, r.Body)
 	if err != nil {
-		cfg.log.Infow(
-			"Error copying hook file",
-			"error", err,
-		)
 		cfg.respondJSONResponse(w, datastructures.CommandResponse{
 			Success: false,
 			Error:   err.Error(),
@@ -205,11 +190,6 @@ func (cfg *Service) serveAdminHooksMgmt(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if int(written) != size {
-		cfg.log.Infow(
-			"Not full hook object written",
-			"size", size,
-			"written", written,
-		)
 		cfg.respondJSONResponse(w, datastructures.CommandResponse{
 			Success: false,
 			Error:   "Not full object written",
@@ -218,25 +198,16 @@ func (cfg *Service) serveAdminHooksMgmt(w http.ResponseWriter, r *http.Request) 
 	}
 	objid, err := stg.Finalize(storage.ZeroID)
 	if err != nil {
-		cfg.log.Infow(
-			"Error finalizing hook file",
-			"error", err,
-		)
 		cfg.respondJSONResponse(w, datastructures.CommandResponse{
 			Success: false,
 			Error:   err.Error(),
 		})
 		return
 	}
-	cfg.log.Infow("Wrote hook file", "objid", objid)
+	cfg.log.Info("Wrote hook file")
 	psh.Done()
 	err = <-psh.GetPushResultChannel()
-	cfg.log.Infow("Got result", "res", err)
 	if err != nil {
-		cfg.log.Infow(
-			"Error finishing hook file",
-			"error", err,
-		)
 		cfg.respondJSONResponse(w, datastructures.CommandResponse{
 			Success: false,
 			Error:   err.Error(),

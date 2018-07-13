@@ -19,8 +19,8 @@
   version = "~3.3.7"
 
 [[constraint]]
-  name = "go.uber.org/zap"
-  version = "^1.8.0"
+  name = "github.com/sirupsen/logrus"
+  version = "^1.0.5"
 
 [[constraint]]
   name = "github.com/pkg/errors"

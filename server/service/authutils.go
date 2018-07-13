@@ -5,8 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"go.uber.org/zap"
-
+	"github.com/sirupsen/logrus"
 	"repospanner.org/repospanner/server/constants"
 )
 
@@ -48,17 +47,17 @@ func (cfg *Service) getPermissionInfo(cstate *tls.ConnectionState) permissionInf
 	return info
 }
 
-func (cfg *Service) addPermToLogger(perminfo permissionInfo, log *zap.SugaredLogger) *zap.SugaredLogger {
-	log = log.With(
+func (cfg *Service) addPermToLogger(perminfo permissionInfo, log *logrus.Entry) *logrus.Entry {
+	log = log.WithField(
 		"authed", perminfo.Authenticated,
 	)
 	if perminfo.Authenticated {
-		log = log.With(
-			"username", perminfo.Username,
-			"user-permissions", perminfo.permissions,
-			"user-regions", perminfo.regions,
-			"user-repos", perminfo.repos,
-		)
+		log = log.WithFields(logrus.Fields{
+			"username":         perminfo.Username,
+			"user-permissions": perminfo.permissions,
+			"user-regions":     perminfo.regions,
+			"user-repos":       perminfo.repos,
+		})
 	}
 
 	return log

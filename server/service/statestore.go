@@ -121,13 +121,7 @@ func (cfg *Service) loadStateStore(spawning bool, joinnode string, directory str
 			return
 		}
 		err = json.Unmarshal(cts, &store)
-		cfg.log.Infow("State loaded",
-			"clustername", store.ClusterName,
-			"regionname", store.RegionName,
-			"nodename", store.NodeName,
-			"nodeid", store.NodeID,
-			"peers", store.Peers,
-		)
+		cfg.log.Info("State loaded")
 	} else if os.IsNotExist(err) {
 		// No state yet, initialize
 		if !spawning && joinnode == "" {
@@ -188,13 +182,6 @@ func (store *stateStore) AddFakeRefs(repo string, req *pb.PushRequest) {
 			store.fakerefs[repo][refname] = creq.GetTo()
 		}
 	}
-
-	store.cfg.log.Debugw(
-		"Generated fake refs",
-		"repo", repo,
-		"pushuuid", req.UUID(),
-		"refs", store.fakerefs[repo],
-	)
 }
 
 func (store *stateStore) GetRepos() map[string]datastructures.RepoInfo {
@@ -243,9 +230,7 @@ func (store *stateStore) recoverFromSnapshot(snapshot []byte) error {
 		return errors.Wrap(err, "Unable to recover from snapshot")
 	}
 	store.repoinfos = info
-	store.cfg.log.Debugw("Restored snapshot",
-		"num-repos", len(store.repoinfos),
-	)
+	store.cfg.log.Debug("Restored snapshot")
 	return nil
 }
 
@@ -267,7 +252,7 @@ func (store *stateStore) Save() error {
 func (store *stateStore) RunStateStore(errchan chan<- error, startedC chan<- struct{}) {
 	// First start the raft node
 	go store.raftnode.startRaft(startedC)
-	store.cfg.log.Debugw("Started raft")
+	store.cfg.log.Debug("Started raft")
 	// Wait for snapshotter ready
 	snapshotter := <-store.snapShotterReady
 	store.cfg.log.Debug("Got snapshotter")
@@ -380,14 +365,10 @@ func (store *stateStore) unsubscribeRepoChangeRequest(repo string, crC chan *pb.
 			// This was a known listener
 			store.repoChangeListeners[repo] = append(listeners[:index], listeners[index+1:]...)
 		} else {
-			store.cfg.log.Errorw("Invalid repochangelistener removal",
-				"repo", repo,
-			)
+			store.cfg.log.Error("Invalid repochangelistener removal")
 		}
 	} else {
-		store.cfg.log.Errorw("repochangelistener removal while no listeners",
-			"repo", repo,
-		)
+		store.cfg.log.Error("repochangelistener removal while no listeners")
 	}
 }
 
@@ -419,15 +400,12 @@ func (store *stateStore) readCommits() {
 				return
 			}
 			if err != nil && err != snap.ErrNoSnapshot {
-				store.cfg.log.Fatalw("Error replaying log", "err", err)
+				store.cfg.log.WithError(err).Fatal("Error replaying log")
 				return
 			}
-			store.cfg.log.Debugw("Loading snapshot",
-				"term", snapshot.Metadata.Term,
-				"index", snapshot.Metadata.Index,
-			)
+			store.cfg.log.Debug("Loading snapshot")
 			if err := store.recoverFromSnapshot(snapshot.Data); err != nil {
-				store.cfg.log.Fatalw("Error loading snapshot", "err", err)
+				store.cfg.log.WithError(err).Fatal("Error loading snapshot")
 				return
 			}
 			continue
@@ -435,17 +413,14 @@ func (store *stateStore) readCommits() {
 
 		req := &pb.ChangeRequest{}
 		if err := proto.Unmarshal(*data, req); err != nil {
-			store.cfg.log.Fatalw("Unable to unmarshal", "err", err)
+			store.cfg.log.WithError(err).Fatal("Unable to unmarshal")
 		}
 
 		switch req.GetCtype() {
 		case pb.ChangeRequest_NEWREPO:
 			r := req.GetNewreporeq()
 
-			store.cfg.log.Debugw("New repo request received",
-				"reponame", r.GetReponame(),
-				"public", r.GetPublic(),
-			)
+			store.cfg.log.Debug("New repo request received")
 			store.mux.Lock()
 			store.repoinfos[r.GetReponame()] = datastructures.RepoInfo{
 				Public:  r.GetPublic(),
@@ -466,17 +441,11 @@ func (store *stateStore) readCommits() {
 			var updaterequest datastructures.RepoUpdateRequest
 			err := json.Unmarshal(r.GetUpdaterequest(), &updaterequest)
 			if err != nil {
-				store.cfg.log.Errorw(
-					"Unable to apply update request",
-					"error", err,
-				)
+				store.cfg.log.WithError(err).Error("Unable to apply update request")
 				continue
 			}
 
-			store.cfg.log.Debugw("Edit repo request received",
-				"reponame", r.GetReponame(),
-				"request", updaterequest,
-			)
+			store.cfg.log.Debug("Edit repo request received")
 			store.mux.Lock()
 			store.applyUpdateRequest(r.GetReponame(), updaterequest)
 			store.mux.Unlock()
@@ -485,19 +454,16 @@ func (store *stateStore) readCommits() {
 		case pb.ChangeRequest_PUSHREQUEST:
 			r := req.GetPushreq()
 
-			store.cfg.log.Debugw("Push request received",
-				"reponame", r.GetReponame(),
-				"requests", r.GetRequests(),
-			)
+			store.cfg.log.Debug("Push request received")
 			store.processPush(r)
 			store.announceRepoChanges(r.GetReponame(), req)
 
 		default:
-			store.cfg.log.Fatalw("Unknown ChangeRequest request received")
+			store.cfg.log.Error("Unknown ChangeRequest request received")
 		}
 	}
 	if err, ok := <-store.errorC; ok {
-		store.cfg.log.Fatalw("Error received", "err", err)
+		store.cfg.log.WithError(err).Fatal("Error received")
 	}
 }
 
@@ -517,9 +483,7 @@ func (store *stateStore) createRepo(repo string, public bool) error {
 	if err != nil {
 		return errors.Wrap(err, "Error marshalling newrepo request")
 	}
-	store.cfg.log.Infow("Repo creation requested",
-		"reponame", repo,
-	)
+	store.cfg.log.Info("Repo creation requested")
 	crC := store.subscribeRepoChangeRequest(repo)
 	defer store.unsubscribeRepoChangeRequest(repo, crC)
 	store.proposeC <- out
@@ -546,10 +510,7 @@ func (store *stateStore) editRepo(repo string, request []byte) error {
 	if err != nil {
 		return errors.Wrap(err, "Error marshalling editrepo request")
 	}
-	store.cfg.log.Infow("Repo editing requested",
-		"reponame", repo,
-		"request", string(request),
-	)
+	store.cfg.log.Info("Repo editing requested")
 	crC := store.subscribeRepoChangeRequest(repo)
 	defer store.unsubscribeRepoChangeRequest(repo, crC)
 	store.proposeC <- out
@@ -633,7 +594,7 @@ func (store *stateStore) performPush(req *pb.PushRequest) PushResult {
 		}
 		cts, err := proto.Marshal(creq)
 		if err != nil {
-			store.cfg.log.Warnw("Error marshalling pushrequest", "err", err)
+			store.cfg.log.WithError(err).Warn("Error marshalling pushrequest")
 			result.success = false
 			result.clienterror = errors.New("Error sending request")
 			result.logerror = errors.New("Error sending request")
@@ -693,10 +654,7 @@ func (store *stateStore) processPush(req *pb.PushRequest) {
 
 	result := store.getPushResult(req)
 	if !result.success {
-		store.cfg.log.Errorw("Applied PushRequest was impossible....",
-			"repoinfo", info,
-			"pushreq", req,
-		)
+		store.cfg.log.Error("Applied PushRequest was impossible....")
 		return
 	}
 

@@ -13,6 +13,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 
 	"repospanner.org/repospanner/server/storage"
 )
@@ -110,12 +111,13 @@ func (o *clusterStorageDriverObject) Close() error {
 func (d *clusterStorageProjectDriverInstance) tryObjectFromNode(objectid storage.ObjectID, nodeid uint64) (storage.ObjectType, uint, io.ReadCloser, error) {
 	objecturl := d.d.cfg.GetPeerURL(nodeid, "/rpc/object/single/"+d.project+".git/"+string(objectid))
 
-	d.d.cfg.log.Debugw("Trying to get object from peer",
-		"project", d.project,
-		"objectid", objectid,
-		"peer", nodeid,
-		"url", objecturl,
-	)
+	logger := d.d.cfg.log.WithFields(logrus.Fields{
+		"project":  d.project,
+		"objectid": objectid,
+		"peer":     nodeid,
+		"url":      objecturl,
+	})
+	logger.Debug("Trying to get object from peer")
 
 	resp, err := d.d.cfg.rpcClient.Get(objecturl)
 	if err != nil {
@@ -134,9 +136,7 @@ func (d *clusterStorageProjectDriverInstance) tryObjectFromNode(objectid storage
 	}
 
 	// We got an object! Stream and store
-	d.d.cfg.log.Debugw("Peer returned object",
-		"headers", resp.Header,
-	)
+	logger.Debug("Peer returned object")
 
 	objtypes, hasobjtype := resp.Header["X-Objecttype"]
 	if !hasobjtype || len(objtypes) != 1 {
@@ -164,11 +164,7 @@ func (d *clusterStorageProjectDriverInstance) tryObjectFromNode(objectid storage
 		resp.Body.Close()
 		return storage.ObjectTypeBad, 0, nil, err
 	}
-	d.d.cfg.log.Debugw("Streaming object from peer",
-		"peerid", nodeid,
-		"objectid", objectid,
-		"project", d.project,
-	)
+	logger.Debug("Streaming object from peer")
 	return objtype, uint(objsizei), &clusterStorageDriverObject{
 		driver:     d,
 		objectid:   objectid,
@@ -179,6 +175,11 @@ func (d *clusterStorageProjectDriverInstance) tryObjectFromNode(objectid storage
 }
 
 func (d *clusterStorageProjectDriverInstance) ReadObject(objectid storage.ObjectID) (storage.ObjectType, uint, io.ReadCloser, error) {
+	logger := d.d.cfg.log.WithFields(logrus.Fields{
+		"objectid": objectid,
+		"project":  d.project,
+	})
+
 	objtype, objsize, reader, err := d.inner.ReadObject(objectid)
 	if err == storage.ErrObjectNotFound {
 		// Okay, now we get to perform our clustered magic
@@ -190,12 +191,7 @@ func (d *clusterStorageProjectDriverInstance) ReadObject(objectid storage.Object
 		if err == nil {
 			return objtype, objsize, reader, err
 		} else if err != storage.ErrObjectNotFound {
-			d.d.cfg.log.Infow("Error retrieving object from primary peer",
-				"peerid", primarypeer,
-				"objectid", objectid,
-				"project", d.project,
-				"error", err,
-			)
+			logger.WithError(err).Info("Error retrieving object from primary peer")
 		}
 
 		// If that didn't have the object (or crashed), fall back
@@ -204,19 +200,11 @@ func (d *clusterStorageProjectDriverInstance) ReadObject(objectid storage.Object
 			if err == nil {
 				return objtype, objsize, reader, err
 			} else if err != storage.ErrObjectNotFound {
-				d.d.cfg.log.Infow("Error retrieving object from peer",
-					"peerid", k,
-					"objectid", objectid,
-					"project", d.project,
-					"error", err,
-				)
+				logger.WithError(err).Info("Error retrieving object from peer")
 			}
 		}
 
-		d.d.cfg.log.Infow("Requested object could not be found at any peer",
-			"objectid", objectid,
-			"project", d.project,
-		)
+		logger.Info("Requested object could not be found at any peer")
 
 		return storage.ObjectTypeBad, 0, nil, storage.ErrObjectNotFound
 	}
@@ -238,10 +226,10 @@ func (d *clusterStorageProjectPushDriverInstance) runPeerSyncer(peerid uint64) {
 	d.syncersWg.Add(1)
 	defer d.syncersWg.Done()
 
-	mylog := d.d.d.cfg.log.With(
-		"pushuuid", d.pushuuid,
-		"syncpeer", peerid,
-	)
+	mylog := d.d.d.cfg.log.WithFields(logrus.Fields{
+		"pushuuid": d.pushuuid,
+		"syncpeer": peerid,
+	})
 
 	var retryfile *os.File
 	retrydir := path.Join(
@@ -263,10 +251,7 @@ func (d *clusterStorageProjectPushDriverInstance) runPeerSyncer(peerid uint64) {
 			return
 		}
 
-		mylog.Debugw(
-			"Attempted to get an entry to sync",
-			"nextentry", nextentry,
-		)
+		mylog.Debug("Attempted to get an entry to sync")
 
 		if nextentry == storage.ZeroID {
 			// Nothing in the queue for us at this moment
@@ -281,18 +266,12 @@ func (d *clusterStorageProjectPushDriverInstance) runPeerSyncer(peerid uint64) {
 					// If we still had any entries we need to retry, rename the retryfile
 					err := retryfile.Close()
 					if err != nil {
-						d.d.d.cfg.log.Infow(
-							"Error storing async retry queue",
-							"error", err,
-						)
+						mylog.WithError(err).Info("Error storing async retry queue")
 						return
 					}
 					err = os.Rename(retryfilename+".inprogress", retryfilename)
 					if err != nil {
-						d.d.d.cfg.log.Infow(
-							"Error renaming async retry queue",
-							"error", err,
-						)
+						mylog.WithError(err).Info("Error renaming async retry queue")
 						return
 					}
 				}
@@ -309,36 +288,28 @@ func (d *clusterStorageProjectPushDriverInstance) runPeerSyncer(peerid uint64) {
 			}
 		}
 
-		mylog := mylog.With("objectid", nextentry)
-		mylog.Debugw("Pushing single object to peer")
+		mylog := mylog.WithField("objectid", nextentry)
+		mylog.Debug("Pushing single object to peer")
 
 		res := d.pushSingleObject(peerid, nextentry)
-		mylog.Debugw("Results are in", "result", res)
+		mylog.Debug("Results are in", "result", res)
 		if res == nil {
 			mylog.Debug("Object synced")
 		} else {
-			mylog.Debugw("Error during object sync",
-				"error", res,
-			)
+			mylog.WithError(err).Info("Error during object sync")
 
 			if retryfile == nil {
 				if _, err := os.Stat(retrydir); os.IsNotExist(err) {
 					err := os.MkdirAll(retrydir, 0755)
 					if err != nil {
-						d.d.d.cfg.log.Infow(
-							"Error creating retry dir",
-							"error", err,
-						)
+						mylog.WithError(err).Info("Error creating retry dir")
 						break
 					}
 				}
 				var err error
 				retryfile, err = os.Create(retryfilename + ".inprogress")
 				if err != nil {
-					d.d.d.cfg.log.Infow(
-						"Error creating retry file",
-						"error", err,
-					)
+					mylog.WithError(err).Info("Error creating retry file")
 					retryfile = nil
 				} else {
 					fmt.Fprintf(retryfile, "project:%s\n", d.d.project)
@@ -348,10 +319,7 @@ func (d *clusterStorageProjectPushDriverInstance) runPeerSyncer(peerid uint64) {
 				fmt.Fprintln(retryfile, nextentry)
 			}
 
-			mylog.Infow(
-				"Error syncing object to peer, queued for async",
-				"error", res,
-			)
+			mylog.WithError(res).Info("Error syncing object to peer, queued for async")
 		}
 
 		err = d.dbReportObject(nextentry, peerid, res == nil)
@@ -415,12 +383,11 @@ func (d *clusterStorageProjectPushDriverInstance) dbAddObject(objid storage.Obje
 		tx.Rollback()
 		return err
 	}
-	d.d.d.cfg.log.Debugw(
-		"Inserted object into syncstatus",
-		"objid", objid,
-		"neededpeers", neededpeers,
-		"numpeers", numpeers,
-	)
+	d.d.d.cfg.log.WithFields(logrus.Fields{
+		"objid":       objid,
+		"neededpeers": neededpeers,
+		"numpeers":    numpeers,
+	}).Debug("Inserted object into syncstatus")
 	for _, peerid := range d.objectSyncPeers {
 		_, err := tx.Exec(
 			`INSERT INTO `+d.dbPeerColumn(peerid)+` (objectid) VALUES ($1)`,
@@ -430,11 +397,6 @@ func (d *clusterStorageProjectPushDriverInstance) dbAddObject(objid storage.Obje
 			tx.Rollback()
 			return err
 		}
-		d.d.d.cfg.log.Debugw(
-			"Inserted object into peer queue",
-			"objid", objid,
-			"peerid", peerid,
-		)
 	}
 	err = tx.Commit()
 	d.d.d.cfg.log.Debug("Kicking syncers")
@@ -455,10 +417,6 @@ func (d *clusterStorageProjectPushDriverInstance) dbGetNextObject(nodeid uint64)
 	var objidS string
 	err = row.Scan(&objidS)
 	if err == sql.ErrNoRows {
-		d.d.d.cfg.log.Debugw(
-			"No entries in queue",
-			"nodeid", nodeid,
-		)
 		tx.Rollback()
 		return storage.ZeroID, nil
 	}
@@ -482,11 +440,6 @@ func (d *clusterStorageProjectPushDriverInstance) dbGetNextObject(nodeid uint64)
 		tx.Rollback()
 		return storage.ZeroID, errors.Errorf("Invalid number of rows affected in delete: %d != 1", aff)
 	}
-	d.d.d.cfg.log.Debugw(
-		"Returned entry from queue",
-		"nodeid", nodeid,
-		"objid", objidS,
-	)
 	return storage.ObjectID(objidS), tx.Commit()
 }
 
@@ -514,15 +467,6 @@ func (d *clusterStorageProjectPushDriverInstance) dbReportObject(objid storage.O
 	if success {
 		neededpeers--
 	}
-	d.d.d.cfg.log.Debugw(
-		"After syncing, determining status",
-		"objectid", objid,
-		"peerid", nodeid,
-		"success", success,
-		"alerted", alerted,
-		"outstanding", outstanding,
-		"needed", neededpeers,
-	)
 	if alerted == 1 {
 		// We have already notified people of the result of this object push
 		tx.Rollback()
@@ -574,7 +518,6 @@ func (d *clusterStorageProjectPushDriverInstance) dbReportObject(objid storage.O
 
 func (d *clusterStorageProjectDriverInstance) GetPusher(pushuuid string) storage.ProjectStoragePushDriver {
 	dbpath := path.Join(d.d.cfg.statestore.directory, "objectsyncs", pushuuid) + ".db"
-	d.d.cfg.log.Debugw("Creating database", "dbpath", dbpath)
 
 	db, err := sql.Open(
 		"sqlite3",
@@ -621,17 +564,7 @@ func (d *clusterStorageProjectDriverInstance) GetPusher(pushuuid string) storage
 		}
 	}
 
-	d.d.cfg.log.Debugw(
-		"Creating pusher",
-		"pushuuid", pushuuid,
-	)
-
 	syncwg.Wait()
-	d.d.cfg.log.Debugw(
-		"Pusher peer syncers running",
-		"pushuuid", pushuuid,
-	)
-
 	return inst
 }
 
@@ -653,25 +586,17 @@ func (d *clusterStorageProjectPushDriverInstance) GetPushResultChannel() <-chan 
 
 func (d *clusterStorageProjectPushDriverInstance) Done() {
 	go func() {
-		d.d.d.cfg.log.Debugw("Marking pusher as done",
-			"pushuuid", d.pushuuid,
-		)
+		d.d.d.cfg.log.Debug("Marking pusher as done")
 
 		d.objectSyncAllSubmitted = true
 		d.objectSyncNewObjects.Broadcast()
-		d.d.d.cfg.log.Debugw("Told syncers we submitted everything",
-			"pushuuid", d.pushuuid,
-		)
+		d.d.d.cfg.log.Debug("Told syncers we submitted everything")
 
 		d.outstandingobjects.Wait()
-		d.d.d.cfg.log.Debugw("Required set of nodes have objects",
-			"pushuuid", d.pushuuid,
-		)
+		d.d.d.cfg.log.Debug("Required set of nodes have objects")
 
 		close(d.errchan)
-		d.d.d.cfg.log.Debugw("Syncer is done",
-			"pushuuid", d.pushuuid,
-		)
+		d.d.d.cfg.log.Debug("Syncer is done")
 
 		go func(waiter *sync.WaitGroup) {
 			// Make sure we only close the database after all syncers are done with it
@@ -679,9 +604,7 @@ func (d *clusterStorageProjectPushDriverInstance) Done() {
 
 			d.objectSyncDB.Close()
 			os.Remove(d.objectSyncDBPath)
-			d.d.d.cfg.log.Debugw("Syncer removed DB",
-				"pushuuid", d.pushuuid,
-			)
+			d.d.d.cfg.log.Debug("Syncer removed DB")
 		}(d.syncersWg)
 	}()
 }

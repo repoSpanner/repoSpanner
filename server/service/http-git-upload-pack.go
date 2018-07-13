@@ -6,11 +6,11 @@ import (
 	"io"
 	"net/http"
 
-	"go.uber.org/zap"
+	"github.com/sirupsen/logrus"
 	"repospanner.org/repospanner/server/storage"
 )
 
-func (cfg *Service) serveGitUploadPack(w http.ResponseWriter, r *http.Request, reqlogger *zap.SugaredLogger, reponame string) {
+func (cfg *Service) serveGitUploadPack(w http.ResponseWriter, r *http.Request, reqlogger *logrus.Entry, reponame string) {
 	reqlogger.Debug("Read requested")
 	bodyreader := bufio.NewReader(r.Body)
 	rw := newWrappedResponseWriter(w)
@@ -21,10 +21,10 @@ func (cfg *Service) serveGitUploadPack(w http.ResponseWriter, r *http.Request, r
 		panic(err)
 	}
 
-	reqlogger = reqlogger.With(
-		"capabilities", capabs,
-		"wants", wants,
-	)
+	reqlogger = reqlogger.WithFields(logrus.Fields{
+		"capabilities": capabs,
+		"wants":        wants,
+	})
 
 	reqlogger.Debug("Got request wants")
 
@@ -32,11 +32,6 @@ func (cfg *Service) serveGitUploadPack(w http.ResponseWriter, r *http.Request, r
 	if err != nil {
 		panic(err)
 	}
-
-	reqlogger.Debugw(
-		"Got sideband status",
-		"sbstatus", sbstatus,
-	)
 
 	multiAck := hasCapab(capabs, "multi_ack")
 	multiAckDetailed := hasCapab(capabs, "multi_ack_detailed")
@@ -80,11 +75,7 @@ func (cfg *Service) serveGitUploadPack(w http.ResponseWriter, r *http.Request, r
 				panic(err)
 			}
 			if enough {
-				reqlogger.Debugw(
-					"We now have enough info to generate a packfile",
-					"have", have,
-					"tosend", tosend.List(),
-				)
+				reqlogger.Debug("We now have enough info to generate a packfile")
 				// We have enough
 				isReady = true
 				commitsToSend = tosend
@@ -133,7 +124,7 @@ func (cfg *Service) serveGitUploadPack(w http.ResponseWriter, r *http.Request, r
 	}
 	defer packfile.Close()
 	cfg.debugPacket(rw, sbstatus, "Packfile built, sending")
-	reqlogger.Debugw("Temporary packfile generated", "numobjects", numobjects)
+	reqlogger.Debug("Temporary packfile generated")
 
 	sbsender := sideBandSender{
 		w:        rw,

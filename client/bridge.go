@@ -73,12 +73,6 @@ func bridge(r *http.Request) {
 		"request", r,
 	)
 	defer resp.Body.Close()
-	logger.Debugw(
-		"Server response received",
-		"url", r.URL,
-		"request", r,
-		"statuscode", resp.StatusCode,
-	)
 	if resp.StatusCode == 404 {
 		exitWithError("Repository does not exist")
 	}

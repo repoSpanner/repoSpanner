@@ -4,18 +4,16 @@ import (
 	"fmt"
 	"net/http"
 
-	"go.uber.org/zap"
+	"github.com/sirupsen/logrus"
 	"repospanner.org/repospanner/server/constants"
 	"repospanner.org/repospanner/server/storage"
 )
 
-func (cfg *Service) serveGitDiscovery(w http.ResponseWriter, r *http.Request, perminfo permissionInfo, reqlogger *zap.SugaredLogger, reponame string, fakerefs bool) {
+func (cfg *Service) serveGitDiscovery(w http.ResponseWriter, r *http.Request, perminfo permissionInfo, reqlogger *logrus.Entry, reponame string, fakerefs bool) {
 	// Git smart protocol handshake
 	services := r.URL.Query()["service"]
 	if len(services) != 1 {
-		reqlogger.Infow("No service requested? Non-smart?",
-			"services", services,
-		)
+		reqlogger.Info("No service requested? Non-smart?")
 		// TODO: Return client error code?
 		http.NotFound(w, r)
 		return
@@ -23,7 +21,7 @@ func (cfg *Service) serveGitDiscovery(w http.ResponseWriter, r *http.Request, pe
 	isrepoclient := len(r.Header[http.CanonicalHeaderKey("X-RepoClient-Version")]) == 1
 	service := services[0]
 	w.Header()["Content-Type"] = []string{"application/x-" + service + "-advertisement"}
-	reqlogger = reqlogger.With("service", service)
+	reqlogger = reqlogger.WithField("service", service)
 
 	if service == "git-upload-pack" || service == "git-receive-pack" {
 		read := service == "git-upload-pack"
@@ -39,12 +37,10 @@ func (cfg *Service) serveGitDiscovery(w http.ResponseWriter, r *http.Request, pe
 
 		if !isrepoclient {
 			if err := sendPacket(w, []byte("# service="+service+"\n")); err != nil {
-				reqlogger.Errorw("Error sending packet", "error", err)
 				http.NotFound(w, r)
 				return
 			}
 			if err := sendFlushPacket(w); err != nil {
-				reqlogger.Errorw("Error sending packet", "error", err)
 				http.NotFound(w, r)
 				return
 			}
@@ -55,11 +51,6 @@ func (cfg *Service) serveGitDiscovery(w http.ResponseWriter, r *http.Request, pe
 
 		if fakerefs {
 			frefs, hasfrefs := cfg.statestore.fakerefs[reponame]
-			reqlogger.Debugw(
-				"Embedding fake refs",
-				"frefs", frefs,
-				"has", hasfrefs,
-			)
 			if hasfrefs {
 				realrefs := refs
 				refs = make(map[string]string)
@@ -84,10 +75,6 @@ func (cfg *Service) serveGitDiscovery(w http.ResponseWriter, r *http.Request, pe
 		sentexts := false
 		for refname, refval := range refs {
 			if !isValidRef(refval) {
-				reqlogger.Errorw("Ref value impossible",
-					"Refname", refname,
-					"refval", refval,
-				)
 				continue
 			}
 			pkt := []byte(fmt.Sprintf("%s %s", refval, refname))
@@ -99,7 +86,6 @@ func (cfg *Service) serveGitDiscovery(w http.ResponseWriter, r *http.Request, pe
 				err = sendPacket(w, pkt)
 			}
 			if err != nil {
-				reqlogger.Errorw("Error sending packet", "error", err)
 				http.NotFound(w, r)
 				return
 			}
@@ -107,24 +93,18 @@ func (cfg *Service) serveGitDiscovery(w http.ResponseWriter, r *http.Request, pe
 		for symref, target := range symrefs {
 			refval, ok := refs[target]
 			if !ok {
-				reqlogger.Debugw("Symref requested for non-existing target",
-					"symref", symref,
-					"target", target,
-				)
 				continue
 			}
 			pkt := []byte(fmt.Sprintf("%s %s", refval, symref))
 			var err error
 			err = sendPacket(w, pkt)
 			if err != nil {
-				reqlogger.Errorw("Error sending packet", "error", err)
 				http.NotFound(w, r)
 				return
 			}
 		}
 
 		if err := sendFlushPacket(w); err != nil {
-			reqlogger.Errorw("Error sending packet", "error", err)
 			http.NotFound(w, r)
 			return
 		}
@@ -132,9 +112,7 @@ func (cfg *Service) serveGitDiscovery(w http.ResponseWriter, r *http.Request, pe
 		return
 	}
 
-	reqlogger.Infow("Invalid service requested",
-		"service", service,
-	)
+	reqlogger.Info("Invalid service requested")
 	http.NotFound(w, r)
 	return
 }

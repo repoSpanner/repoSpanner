@@ -15,16 +15,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/coreos/etcd/pkg/transport"
 	"github.com/coreos/etcd/raft"
 	"github.com/coreos/pkg/capnslog"
+	"github.com/pkg/errors"
 	"golang.org/x/net/http2"
+
 	"repospanner.org/repospanner/server/constants"
 	"repospanner.org/repospanner/server/storage"
 	"repospanner.org/repospanner/server/utils"
-
-	"github.com/pkg/errors"
-	"go.uber.org/zap"
 )
 
 func getCertPoolFromFile(pemfile string) (*x509.CertPool, error) {
@@ -129,7 +130,7 @@ type Service struct {
 	cluster  string
 
 	logwrapper *utils.LogWrapper
-	log        *zap.SugaredLogger
+	log        *logrus.Logger
 	statestore *stateStore
 	gitstore   storage.StorageDriver
 	sync       *syncer
@@ -154,21 +155,14 @@ func (cfg *Service) Initialize() error {
 		return nil
 	}
 
+	logger := logrus.New()
 	if cfg.Debug {
-		logger, err := zap.NewDevelopment()
-		if err != nil {
-			return err
-		}
-		defer logger.Sync()
-		cfg.log = logger.Sugar()
+		logger.SetLevel(logrus.DebugLevel)
 	} else {
-		logger, err := zap.NewProduction()
-		if err != nil {
-			return err
-		}
-		defer logger.Sync()
-		cfg.log = logger.Sugar()
+		logger.SetLevel(logrus.InfoLevel)
 	}
+	cfg.log = logger
+
 	cfg.logwrapper = utils.CreateLogWrapper(cfg.log)
 	capnslog.SetFormatter(cfg.logwrapper)
 	raft.SetLogger(cfg.logwrapper)
@@ -275,10 +269,6 @@ func (cfg *Service) Initialize() error {
 		return errors.Wrap(err, "Error configuring rpc transport for h2")
 	}
 	cfg.rpcClient = &http.Client{Transport: rpcTransport}
-
-	cfg.log = cfg.log.With(
-		"nodeid", cfg.nodeid,
-	)
 
 	syncer, err := cfg.createSyncer()
 	if err != nil {
@@ -426,9 +416,7 @@ func (cfg *Service) RunServer(spawning bool, joinnode string) error {
 		if cfg.log == nil {
 			return err
 		}
-		cfg.log.Fatalw("Fatal error occured",
-			"err", err,
-		)
+		cfg.log.WithError(err).Fatal("Fatal error occured")
 		return nil
 	}
 	return nil
@@ -449,11 +437,7 @@ func (cfg *Service) runServer(spawning bool, joinnode string) error {
 		return err
 	}
 
-	cfg.log.Infow("Starting serving",
-		"nodename", cfg.nodename,
-		"region", cfg.region,
-		"cluster", cfg.cluster,
-	)
+	cfg.log.Info("Starting serving")
 
 	// We create a stopped timer that we can start when we start getting closes
 	shutdownTimer := time.NewTimer(5 * time.Second)
@@ -480,9 +464,7 @@ func (cfg *Service) runServer(spawning bool, joinnode string) error {
 		case err := <-errchan:
 			if err == nil {
 				gotcloses++
-				cfg.log.Debugw("Got a succesful close",
-					"numcloses", gotcloses,
-				)
+				cfg.log.Debug("Service shut down")
 				if gotcloses == numServices {
 					// We got "nil" from everything, which means we're done!
 					cfg.log.Info("Shutdown complete")
@@ -510,9 +492,7 @@ func (cfg *Service) runHTTP(errchan chan<- error) {
 	}
 	cfg.httpServer = &http.Server{Handler: cfg}
 	err = cfg.httpServer.Serve(lis)
-	cfg.log.Infow("Git HTTP server shut down",
-		"err", err,
-	)
+	cfg.log.WithError(err).Info("Git HTTP server shut down")
 	if err != http.ErrServerClosed {
 		errchan <- errors.Wrap(err, "Git HTTP error")
 	} else {
