@@ -2,6 +2,7 @@ package client
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -10,20 +11,51 @@ import (
 	"syscall"
 
 	"github.com/spf13/viper"
-
-	"repospanner.org/repospanner/server/service"
 )
 
 var (
 	username string
 )
 
+func sendPacket(w io.Writer, packet []byte) error {
+	len, err := getPacketLen(packet)
+	if err != nil {
+		return err
+	}
+	if _, err := w.Write([]byte(len)); err != nil {
+		return err
+	}
+	if _, err := w.Write(packet); err != nil {
+		return err
+	}
+	return nil
+}
+
+func sendFlushPacket(w io.Writer) error {
+	_, err := w.Write([]byte{'0', '0', '0', '0'})
+	return err
+}
+
+func getPacketLen(packet []byte) ([]byte, error) {
+	pktlen := len(packet) + 4 // Funny detail: the 4 bytes with length are included in length
+	if pktlen == 4 {
+		// "Empty" packets are not allowed
+		return nil, errors.New("Unable to send empty packet")
+	}
+	if pktlen > 65520 {
+		return nil, errors.New("Packet too big")
+	}
+	len := fmt.Sprintf("%04x", pktlen)
+	return []byte(len), nil
+}
+
 func exitWithError(errmsg string, extra ...interface{}) {
 	// When we get here, we have most likely not yet arrived at sending any requests,
 	// or are still at the discovery stage.
 	// Send a plain (non-sidebanded) git packet.
 	// The only moment that this would be wrong
-	service.SendPacketWithFlush(os.Stdout, []byte("ERR "+errmsg))
+	sendPacket(os.Stdout, []byte("ERR "+errmsg+"\n"))
+	sendFlushPacket(os.Stdout)
 	os.Exit(1)
 }
 

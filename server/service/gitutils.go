@@ -271,15 +271,6 @@ func possiblyFlush(w io.Writer) {
 	}
 }
 
-// SendPacketWithFlush sends a single git packet without sideband identifier and a
-// flush packet.
-func SendPacketWithFlush(w io.Writer, packet []byte) error {
-	if err := sendPacket(w, packet); err != nil {
-		return err
-	}
-	return sendFlushPacket(w)
-}
-
 func sendPacket(w io.Writer, packet []byte) error {
 	len, err := getPacketLen(packet)
 	if err != nil {
