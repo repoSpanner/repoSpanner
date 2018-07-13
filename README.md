@@ -21,7 +21,7 @@ Build repoSpanner
 
 You will need the Go dep tool installed to build repoSpanner:
 
-    $ dnf install dep-devel
+    $ dnf install dep
 
 Followed by that:
 
