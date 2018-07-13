@@ -4,8 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"go.uber.org/zap"
-
+	"github.com/sirupsen/logrus"
 	"repospanner.org/repospanner/server/constants"
 )
 
@@ -23,19 +22,19 @@ func (cfg *Service) addSecurityHeaders(w http.ResponseWriter) {
 	w.Header()["X-Repospanner-NodeName"] = []string{cfg.nodename}
 }
 
-func (cfg *Service) prereq(w http.ResponseWriter, r *http.Request, server string) (*zap.SugaredLogger, permissionInfo) {
+func (cfg *Service) prereq(w http.ResponseWriter, r *http.Request, server string) (*logrus.Entry, permissionInfo) {
 	cfg.addSecurityHeaders(w)
 
-	reqlogger := cfg.log.With(
-		"server", server,
-		"protocol", r.Proto,
-		"method", r.Method,
-		"client", r.RemoteAddr,
-		"url", r.URL,
-	)
+	reqlogger := cfg.log.WithFields(logrus.Fields{
+		"server":   server,
+		"protocol": r.Proto,
+		"method":   r.Method,
+		"client":   r.RemoteAddr,
+		"url":      r.URL,
+	})
 	hdr, ok := r.Header["User-Agent"]
 	if ok && len(hdr) >= 1 {
-		reqlogger = reqlogger.With(
+		reqlogger = reqlogger.WithField(
 			"useragent", hdr[0],
 		)
 	}
@@ -70,7 +69,7 @@ func (cfg *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	repoclient := r.Header[http.CanonicalHeaderKey("X-RepoClient-Version")]
 	if len(repoclient) != 0 {
-		reqlogger = reqlogger.With(
+		reqlogger = reqlogger.WithField(
 			"RepoClient-Version", repoclient,
 		)
 	}
@@ -100,10 +99,10 @@ func (cfg *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		reqlogger = reqlogger.With(
-			"reponame", reponame,
-			"command", command,
-		)
+		reqlogger = reqlogger.WithFields(logrus.Fields{
+			"reponame": reponame,
+			"command":  command,
+		})
 
 		if !cfg.statestore.hasRepo(reponame) {
 			reqlogger.Debug("Non-existing repo requested")

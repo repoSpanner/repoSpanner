@@ -4,18 +4,18 @@ import (
 	"fmt"
 
 	"github.com/coreos/pkg/capnslog"
-	"go.uber.org/zap"
+	"github.com/sirupsen/logrus"
 )
 
-// LogWrapper is a utility to wrap both coreos capnslog and coreos.raft.Logger for zap
+// LogWrapper is a utility to wrap both coreos capnslog and coreos.raft.Logger for logrus
 type LogWrapper struct {
-	inner *zap.SugaredLogger
+	inner *logrus.Logger
 
 	sentInitialized bool
 	HasInitialized  chan struct{}
 }
 
-func CreateLogWrapper(in *zap.SugaredLogger) *LogWrapper {
+func CreateLogWrapper(in *logrus.Logger) *LogWrapper {
 	return &LogWrapper{
 		inner: in,
 
@@ -29,57 +29,33 @@ func (w *LogWrapper) Flush() {}
 
 func (w *LogWrapper) Format(pkg string, level capnslog.LogLevel, depth int, entries ...interface{}) {
 	msg := fmt.Sprint(entries...)
+	log := w.inner.WithFields(logrus.Fields{
+		"pkg":   pkg,
+		"level": level.String(),
+		"depth": depth,
+	})
 
 	switch level {
 	case capnslog.CRITICAL:
-		w.inner.Fatalw(msg,
-			"pkg", pkg,
-			"level", level.String(),
-			"depth", depth,
-		)
+		log.Fatal(msg)
 	case capnslog.ERROR:
-		w.inner.Errorw(msg,
-			"pkg", pkg,
-			"level", level.String(),
-			"depth", depth,
-		)
+		log.Error(msg)
 	case capnslog.WARNING:
-		w.inner.Warnw(msg,
-			"pkg", pkg,
-			"level", level.String(),
-			"depth", depth,
-		)
+		log.Warn(msg)
 	case capnslog.NOTICE:
-		w.inner.Infow(msg,
-			"pkg", pkg,
-			"level", level.String(),
-			"depth", depth,
-		)
+		log.Info(msg)
 	case capnslog.INFO:
-		w.inner.Infow(msg,
-			"pkg", pkg,
-			"level", level.String(),
-			"depth", depth,
-		)
+		log.Info(msg)
 	case capnslog.DEBUG:
-		w.inner.Debugw(msg,
-			"pkg", pkg,
-			"level", level.String(),
-			"depth", depth,
-		)
+		log.Debug(msg)
 	case capnslog.TRACE:
-		w.inner.Debugw(msg,
-			"pkg", pkg,
-			"level", level.String(),
-			"depth", depth,
-		)
+		log.Debug(msg)
 	default:
 		panic("Unhandled capnslog loglevel")
 	}
 }
 
 // raft.Logger interface
-// All this because zap calls it Warn while raft.Logger wants Warning........
 func (w *LogWrapper) Debug(v ...interface{}) {
 	w.inner.Debug(v...)
 }

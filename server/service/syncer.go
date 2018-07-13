@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -87,16 +88,14 @@ func (s *syncer) syncSingleFile(peerid uint64, queue *os.File) error {
 		return err
 	}
 
-	s.cfg.log.Debugw(
-		"Syncing outqueue to peer",
-		"peer", peerid,
-		"projectname", projectname,
-	)
 	driver := s.cfg.gitstore.GetProjectStorage(projectname)
 
 	for {
 		var objectidS string
 		_, err := fmt.Fscanln(queue, &objectidS)
+		if err == io.EOF {
+			return nil
+		}
 		if err != nil {
 			return err
 		}
@@ -105,26 +104,19 @@ func (s *syncer) syncSingleFile(peerid uint64, queue *os.File) error {
 		}
 		objectid := storage.ObjectID(objectidS)
 
-		s.cfg.log.Debugw("Syncing object",
-			"peer", peerid,
-			"projectname", projectname,
-			"objectid", objectid,
-		)
-
-		return s.cfg.syncSingleObject(
+		err = s.cfg.syncSingleObject(
 			peerid,
 			driver,
 			projectname,
 			objectid,
 		)
+		if err != nil {
+			return err
+		}
 	}
 }
 
 func (s *syncer) runSingleSync(peerid uint64) {
-	s.cfg.log.Debugw(
-		"Running single sync",
-		"peer", peerid,
-	)
 	peerdir := path.Join(
 		s.cfg.statestore.directory,
 		"async-outqueues",
@@ -136,11 +128,7 @@ func (s *syncer) runSingleSync(peerid uint64) {
 		return
 	}
 	if err != nil {
-		s.cfg.log.Infow(
-			"Error getting outgoing queue",
-			"peer", peerid,
-			"error", err,
-		)
+		s.cfg.log.WithError(err).Info("Error getting outgoing queue")
 		return
 	}
 
@@ -150,63 +138,32 @@ func (s *syncer) runSingleSync(peerid uint64) {
 		}
 
 		if file.IsDir() {
-			s.cfg.log.Errorw(
-				"Directory found in outqueue",
-				"peer", peerid,
-			)
+			s.cfg.log.Error("Directory in outqueue")
 			continue
 		}
-
-		s.cfg.log.Debugw(
-			"Entry to sync out",
-			"peer", peerid,
-			"pushuuid", file.Name(),
-		)
 
 		queuefilepath := path.Join(peerdir, file.Name())
 		queuefile, err := os.Open(queuefilepath)
 		if err != nil {
-			s.cfg.log.Infow(
-				"Error opening outgoing queue",
-				"peer", peerid,
-				"pushuuid", file.Name(),
-				"error", err,
-			)
+			s.cfg.log.WithError(err).Error("Error opening outqueue")
 			continue
 		}
 		err = s.syncSingleFile(peerid, queuefile)
 		if err != nil {
-			s.cfg.log.Debugw(
-				"Error syncing queue",
-				"peer", peerid,
-				"pushuuid", file.Name(),
-				"error", err,
-			)
 			continue
 		}
 
 		// We finished syncing this out to the peer, delete the queue
 		err = os.Remove(queuefilepath)
 		if err != nil {
-			s.cfg.log.Infow(
-				"Unable to delete queue file after syncing",
-				"peer", peerid,
-				"pushuuid", file.Name(),
-				"error", err,
-			)
+			s.cfg.log.WithError(err).Info("Error deleting outqueue entry")
 			continue
 		}
-
-		s.cfg.log.Debugw(
-			"Queue synced out",
-			"peer", peerid,
-			"pushuuid", file.Name(),
-		)
 	}
 }
 
 func (s *syncer) runPeer(peerid uint64) {
-	s.cfg.log.Debugw("Starting peer syncer", "peer", peerid)
+	s.cfg.log.Debugf("Starting peer syncer for peer %d", peerid)
 	s.wg.Add(1)
 	defer s.wg.Done()
 

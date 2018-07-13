@@ -13,6 +13,7 @@ import (
 	"github.com/coreos/etcd/pkg/fileutil"
 	"github.com/coreos/etcd/pkg/types"
 	"github.com/coreos/etcd/wal/walpb"
+	"github.com/sirupsen/logrus"
 
 	"github.com/coreos/etcd/raft"
 	"github.com/coreos/etcd/raft/raftpb"
@@ -202,10 +203,10 @@ func (rc *stateRaftNode) openWAL(snapshot *raftpb.Snapshot) *wal.WAL {
 	if snapshot != nil {
 		walsnap.Index, walsnap.Term = snapshot.Metadata.Index, snapshot.Metadata.Term
 	}
-	rc.store.cfg.log.Debugw("Loading wal",
-		"term", walsnap.Term,
-		"index", walsnap.Index,
-	)
+	rc.store.cfg.log.WithFields(logrus.Fields{
+		"term":  walsnap.Term,
+		"index": walsnap.Index,
+	}).Debug("Loading wal")
 	w, err := wal.Open(rc.waldir, walsnap)
 	if err != nil {
 		log.Fatalf("raftexample: error loading wal (%v)", err)
@@ -327,12 +328,10 @@ func (rc *stateRaftNode) publishSnapshot(snapshotToSave raftpb.Snapshot) {
 		return
 	}
 
-	rc.store.cfg.log.Debugw("Publishing snapshot",
-		"index", rc.snapshotIndex,
+	rc.store.cfg.log.Debugf("Publishing snapshot at index %d",
+		rc.snapshotIndex,
 	)
-	defer rc.store.cfg.log.Debugw("Finished publishing snapshot",
-		"index", rc.snapshotIndex,
-	)
+	defer rc.store.cfg.log.Debug("Finished publishing snapshot")
 
 	if snapshotToSave.Metadata.Index <= rc.appliedIndex {
 		log.Fatalf("snapshot index [%d] should > progress.appliedIndex [%d] + 1", snapshotToSave.Metadata.Index, rc.appliedIndex)
@@ -351,9 +350,9 @@ func (rc *stateRaftNode) maybeTriggerSnapshot() {
 		return
 	}
 
-	rc.store.cfg.log.Debugw("Starting snapshot",
-		"applied-index", rc.appliedIndex,
-		"last-index", rc.snapshotIndex,
+	rc.store.cfg.log.Debugf("Starting snapshot applied %d, last %d",
+		rc.appliedIndex,
+		rc.snapshotIndex,
 	)
 	data, err := rc.getSnapshot()
 	if err != nil {
@@ -375,8 +374,8 @@ func (rc *stateRaftNode) maybeTriggerSnapshot() {
 		panic(err)
 	}
 
-	rc.store.cfg.log.Debugw("Compacted log",
-		"index", compactIndex,
+	rc.store.cfg.log.Debugf("Compacted log at index %d",
+		compactIndex,
 	)
 	rc.snapshotIndex = rc.appliedIndex
 }
@@ -472,8 +471,8 @@ func (rc *stateRaftNode) ReportUnreachable(id uint64) {
 }
 
 func (rc *stateRaftNode) ReportSnapshot(id uint64, status raft.SnapshotStatus) {
-	rc.store.cfg.log.Debugw("Snapshot reported",
-		"nodeid", id,
-		"snapshotstatus", status,
+	rc.store.cfg.log.Debugf("Snapshot reported by node %d, status %d",
+		id,
+		status,
 	)
 }

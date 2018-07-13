@@ -16,11 +16,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/sirupsen/logrus"
 	"repospanner.org/repospanner/server/constants"
 	pb "repospanner.org/repospanner/server/protobuf"
 	"repospanner.org/repospanner/server/storage"
-
-	"go.uber.org/zap"
 )
 
 type sideBand byte
@@ -415,7 +414,7 @@ func isValidRefName(refname string) bool {
 	return true
 }
 
-func (cfg *Service) readDownloadPacketRequestHeader(r io.Reader, reqlogger *zap.SugaredLogger, reponame string) (capabs []string, toupdate *pb.PushRequest, err error) {
+func (cfg *Service) readDownloadPacketRequestHeader(r io.Reader, reqlogger *logrus.Entry, reponame string) (capabs []string, toupdate *pb.PushRequest, err error) {
 	// Even though the documentation says we need to expect "commands", git does not
 	// actually seem to send those, and instead just sends <to> <from> <refname> lines
 	toupdate = pb.NewPushRequest(cfg.nodeid, reponame)
@@ -432,9 +431,6 @@ func (cfg *Service) readDownloadPacketRequestHeader(r io.Reader, reqlogger *zap.
 		}
 
 		strpkt := string(pkt)
-		reqlogger.Debugw("Read packet",
-			"packet", strpkt,
-		)
 
 		if len(pkt) == 0 {
 			reqlogger.Debug("Got flush")
@@ -475,9 +471,6 @@ func (cfg *Service) readDownloadPacketRequestHeader(r io.Reader, reqlogger *zap.
 				if len(split) >= 3 {
 					capabs = split[3:]
 				}
-				reqlogger.Debugw("Parsed capabs",
-					"capabs", capabs,
-				)
 				hadcapabs = true
 			} else {
 				return nil, nil, errors.New("Capabilities received unexpectedly")
@@ -521,20 +514,13 @@ func wantIsReachableFromCommons(p storage.ProjectStorageDriver, want storage.Obj
 	return true, nil
 }
 
-func hasEnoughHaves(p storage.ProjectStorageDriver, reqlogger *zap.SugaredLogger, wants []storage.ObjectID, common objectIDSearcher) (bool, objectIDSearcher, error) {
+func hasEnoughHaves(p storage.ProjectStorageDriver, reqlogger *logrus.Entry, wants []storage.ObjectID, common objectIDSearcher) (bool, objectIDSearcher, error) {
 	tosend := newObjectIDSearch()
 	for _, want := range wants {
 		wantIsReachable, err := wantIsReachableFromCommons(p, want, common, tosend)
 		if err != nil {
 			return false, nil, err
 		}
-		reqlogger.Debugw(
-			"Want reachability determined",
-			"want", want,
-			"reachability", wantIsReachable,
-			"common", common.List(),
-			"tosend", tosend.List(),
-		)
 		if !wantIsReachable {
 			return false, nil, nil
 		}
@@ -542,7 +528,7 @@ func hasEnoughHaves(p storage.ProjectStorageDriver, reqlogger *zap.SugaredLogger
 	return true, tosend, nil
 }
 
-func readHavePacket(r io.Reader, reqlogger *zap.SugaredLogger) (have storage.ObjectID, isdone, iseof bool, err error) {
+func readHavePacket(r io.Reader, reqlogger *logrus.Entry) (have storage.ObjectID, isdone, iseof bool, err error) {
 	have = storage.ZeroID
 
 	var pkt []byte
@@ -558,9 +544,6 @@ func readHavePacket(r io.Reader, reqlogger *zap.SugaredLogger) (have storage.Obj
 	}
 
 	strpkt := strings.TrimSpace(string(pkt))
-	reqlogger.Debugw("Read packet",
-		"packet", strpkt,
-	)
 
 	if len(pkt) == 0 {
 		isdone = true
@@ -580,7 +563,7 @@ func readHavePacket(r io.Reader, reqlogger *zap.SugaredLogger) (have storage.Obj
 
 	haveS := split[1]
 	if !isValidRef(haveS) {
-		reqlogger.Debugw("Invalid have ref", "ref", have)
+		reqlogger.Debugf("Invalid have ref: %s", have)
 		err = errors.New("Invalid have value")
 		return
 	}
@@ -589,7 +572,7 @@ func readHavePacket(r io.Reader, reqlogger *zap.SugaredLogger) (have storage.Obj
 	return
 }
 
-func readUploadPackRequest(r io.Reader, reqlogger *zap.SugaredLogger) (capabs []string, wants []storage.ObjectID, err error) {
+func readUploadPackRequest(r io.Reader, reqlogger *logrus.Entry) (capabs []string, wants []storage.ObjectID, err error) {
 	hadcapabs := false
 
 	for {
@@ -605,9 +588,6 @@ func readUploadPackRequest(r io.Reader, reqlogger *zap.SugaredLogger) (capabs []
 		}
 
 		strpkt := strings.TrimSpace(string(pkt))
-		reqlogger.Debugw("Read packet",
-			"packet", strpkt,
-		)
 
 		if len(pkt) == 0 {
 			reqlogger.Debug("End of wants")
@@ -624,13 +604,10 @@ func readUploadPackRequest(r io.Reader, reqlogger *zap.SugaredLogger) (capabs []
 		if split[0] == "want" {
 			want := split[1]
 			if !isValidRef(want) {
-				reqlogger.Debugw("Invalid want ref", "ref", want)
+				reqlogger.Debugf("Invalid want ref: %s", want)
 				err = fmt.Errorf("Invalid want: %s", want)
 				return
 			}
-			reqlogger.Debugw("Adding want",
-				"want", want,
-			)
 			wants = append(wants, storage.ObjectID(want))
 		} else {
 			err = errors.New("Invalid packet read in wants phase")
@@ -640,9 +617,6 @@ func readUploadPackRequest(r io.Reader, reqlogger *zap.SugaredLogger) (capabs []
 			if !hadcapabs {
 				// Parse capabilities
 				capabs = split[2:]
-				reqlogger.Debugw("Parsed capabs",
-					"capabs", capabs,
-				)
 				hadcapabs = true
 			} else {
 				err = errors.New("Capabilities received unexpectedly")
@@ -650,8 +624,6 @@ func readUploadPackRequest(r io.Reader, reqlogger *zap.SugaredLogger) (capabs []
 			}
 		}
 	}
-
-	return
 }
 
 func concatSlices(slices ...[]byte) (ret []byte) {
@@ -700,12 +672,8 @@ func writeNetworkByteOrderInt32(n uint32) []byte {
 	return buf
 }
 
-func checksumsMatch(calculated, expected []byte, reqlogger *zap.SugaredLogger) bool {
+func checksumsMatch(calculated, expected []byte, reqlogger *logrus.Entry) bool {
 	if len(calculated) != len(expected) {
-		reqlogger.Infow("Checksums length mismatch.",
-			"calculated", calculated,
-			"expected", expected,
-		)
 		return false
 	}
 	matches := true
@@ -713,9 +681,9 @@ func checksumsMatch(calculated, expected []byte, reqlogger *zap.SugaredLogger) b
 		matches = matches && v == expected[i]
 	}
 	if !matches {
-		reqlogger.Infow("Packfile checksums don't match",
-			"calculated", calculated,
-			"expected", expected,
+		reqlogger.Infof("Packfile checksums don't match: %s != %s",
+			calculated,
+			expected,
 		)
 	}
 	return matches
