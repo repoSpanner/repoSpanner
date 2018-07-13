@@ -1,0 +1,16 @@
+language: go
+# We modify /etc/hosts
+sudo: true
+go:
+- "1.10"
+- master
+go_import_path: repospanner.org/repospanner
+# In no way would I suggest doing curl | sh normally.... But it's not my environment
+install:
+- curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
+before_script:
+- echo "127.0.0.1   node1.regiona.repospanner.local node2.regiona.repospanner.local node3.regiona.repospanner.local" | sudo tee -a /etc/hosts
+script:
+- git config --global protocol.ext.allow always
+- ./build.sh
+- go test ./...

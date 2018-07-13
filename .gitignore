@@ -26,6 +26,7 @@ vendor/
 *.yml
 *.tks
 !.mergify.yml
+!.travis.yml
 
 # Test directories
 /livetest/
