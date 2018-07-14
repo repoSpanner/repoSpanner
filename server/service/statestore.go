@@ -242,7 +242,7 @@ func (store *stateStore) Save() error {
 	if err != nil {
 		return err
 	}
-	err = ioutil.WriteFile(path.Join(store.directory, "state.json"), cts, 0644)
+	err = ioutil.WriteFile(path.Join(store.directory, "state.json"), cts, 0600)
 	if err != nil {
 		return err
 	}
