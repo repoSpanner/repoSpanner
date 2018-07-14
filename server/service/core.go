@@ -46,8 +46,8 @@ var versionregex = regexp.MustCompile("^go([0-9]+)\\.([0-9]+)(\\.)?")
 // Version 1.10, and whether it is sure about this.
 func IsAtLeastGo110(version string) (atleast110 bool, sure bool) {
 	matches := versionregex.FindStringSubmatch(version)
-	// Matches would be e.g.: [go1.10. 1 10]
-	if len(matches) != 3 {
+	// Matches would be e.g.: [go1.10. 1 10 .]
+	if len(matches) != 3 && len(matches) != 4 {
 		// This is not a tagged go release version string
 		return
 	}
