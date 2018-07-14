@@ -1,5 +1,5 @@
 *           @repoSpanner/core
 
 # Documentation
-/README.md  @repoSpanner/docs
+*.md        @repoSpanner/docs
 /docs/      @repoSpanner/docs
