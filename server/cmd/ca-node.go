@@ -19,7 +19,7 @@ import (
 var caNodeCmd = &cobra.Command{
 	Use:   "node",
 	Short: "Create a node certificate",
-	Long:  `Generating a nide certificate.`,
+	Long:  `Generating a node certificate.`,
 	Run:   runCaNode,
 	Args:  cobra.ExactArgs(2),
 }
@@ -108,6 +108,6 @@ func runCaNode(cmd *cobra.Command, args []string) {
 func init() {
 	caCmd.AddCommand(caNodeCmd)
 
-	caNodeCmd.Flags().Int("years", 1, "Validity of the node crtificate")
+	caNodeCmd.Flags().Int("years", 1, "Validity of the node certificate")
 	caNodeCmd.Flags().Int64("nodeid", 0, "Node ID (for replacing existing node cert)")
 }
