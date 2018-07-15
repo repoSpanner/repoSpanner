@@ -36,7 +36,7 @@ more "regions", which contain one or more "nodes".  A cluster contains
 all nodes that are under the same deployment, and a region contains all
 nodes that talk and synchronize amongst each other.
 
-The `nodename.regionname.clustername` should be the FQDN's the nodes use
+The `nodename.regionname.clustername` should be the FQDNs the nodes use
 to communicate with their peers.
 
 The repoSpanner binary contains all the tools needed to create the
