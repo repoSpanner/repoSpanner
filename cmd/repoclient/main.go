@@ -16,6 +16,11 @@ func main() {
 	}
 	if len(os.Args) == 1 {
 		fmt.Println("repoSpanner client " + constants.PublicVersionString())
+		if client.HasH2() {
+			fmt.Println("This client is HTTP/2 enabled")
+		} else {
+			fmt.Println("This client is deprived of HTTP/2 goodness")
+		}
 		os.Exit(0)
 	}
 

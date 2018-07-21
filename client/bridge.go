@@ -9,8 +9,6 @@ import (
 	"os"
 
 	"repospanner.org/repospanner/server/constants"
-
-	"golang.org/x/net/http2"
 )
 
 var client *http.Client
@@ -48,8 +46,8 @@ func getClient() *http.Client {
 			RootCAs:                  certpool,
 		},
 	}
-	err = http2.ConfigureTransport(transport)
-	checkError(err, "Error initializing h2 transport")
+
+	maybeConfigureH2(transport)
 
 	client = &http.Client{
 		Transport: transport,
