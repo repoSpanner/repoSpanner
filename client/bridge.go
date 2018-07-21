@@ -11,8 +11,6 @@ import (
 	"repospanner.org/repospanner/server/constants"
 
 	"golang.org/x/net/http2"
-
-	"github.com/spf13/viper"
 )
 
 var client *http.Client
@@ -31,7 +29,7 @@ func getClient() *http.Client {
 	checkError(err, "Error initializing client")
 
 	var certpool *x509.CertPool
-	capath := viper.GetString("ca")
+	capath := configuration.Ca
 	if capath != "" {
 		cts, err := ioutil.ReadFile(capath)
 		checkError(err, "Error initializing client ca")
@@ -60,7 +58,7 @@ func getClient() *http.Client {
 }
 
 func getURL(service, reponame string) string {
-	return viper.GetString("baseurl") + "/repo/" + reponame + ".git/" + service
+	return configuration.BaseURL + "/repo/" + reponame + ".git/" + service
 }
 
 func bridge(r *http.Request) {
