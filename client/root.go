@@ -2,19 +2,27 @@ package client
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path"
 	"strings"
 	"syscall"
-
-	"github.com/spf13/viper"
 )
+
+type config struct {
+	GitBinary string
+	Ca string
+	BaseURL string
+	Certs map[string]map[string]string
+}
 
 var (
 	username string
+	configuration config
 )
 
 func sendPacket(w io.Writer, packet []byte) error {
@@ -68,7 +76,7 @@ func checkError(err error, errmsg string, extra ...interface{}) {
 }
 
 func callGit(command, repo string) {
-	gitbinary := viper.GetString("gitbinary")
+	gitbinary := configuration.GitBinary
 	err := syscall.Exec(
 		gitbinary,
 		append(
@@ -103,44 +111,32 @@ func isRawGitRepo(path string) (rawgit bool, gsname string, err error) {
 	return
 }
 
-func checkConfigured(options ...string) {
-	missing := false
-	for _, opt := range options {
-		if !viper.IsSet(opt) {
-			missing = true
-			fmt.Fprintln(os.Stderr, "Required option not configured:", opt)
-		}
+func loadConfig() {
+	cfgFile := os.Getenv("REPOCLIENT_CONFIG")
+	if cfgFile=="" {
+		cfgFile = "/etc/repospanner/client_config.json"
 	}
-	if missing {
-		exitWithError("Invalid configuration file")
-	}
+	cts, err := ioutil.ReadFile(cfgFile)
+	checkError(err, "Error reading configuration")
+	err = json.Unmarshal(cts, &configuration)
+	checkError(err, "Error parsing configuration")
 }
 
 func ExecuteClient() {
 	username = os.Getenv("USER")
-	cfgFile := os.Getenv("REPOCLIENT_CONFIG")
 	if username == "" {
 		exitWithError("Unable to determine username")
 		os.Exit(1)
 	}
-	viper.SetConfigName("client_config")
-	if cfgFile != "" {
-		viper.SetConfigFile(cfgFile)
-	} else {
-		viper.AddConfigPath("/etc/repospanner")
-	}
-	if err := viper.ReadInConfig(); err != nil {
-		exitWithError("Unable to read config file")
-		os.Exit(1)
-	}
+	loadConfig()
 
 	// Just call this to make sure we abort loudly early on if the user has no access
 	getCertAndKey()
 
-	checkConfigured(
-		"baseurl",
-		"gitbinary",
-	)
+	if configuration.GitBinary == "" || configuration.BaseURL == "" {
+		exitWithError("Invalid configuration file")
+		os.Exit(1)
+	}
 
 	var command string
 	var repo string
@@ -211,21 +207,17 @@ func shouldClose(r io.ReadCloser) (bool, io.ReadCloser) {
 }
 
 func getCertAndKey() (string, string) {
-	usercertopt := fmt.Sprintf("certs.%s.cert", username)
-	userkeyopt := fmt.Sprintf("certs.%s.key", username)
-
-	if viper.IsSet(usercertopt) && viper.IsSet(userkeyopt) {
-		return viper.GetString(usercertopt), viper.GetString(userkeyopt)
+	user, hasuser := configuration.Certs[username]
+	if hasuser {
+		return user["cert"], user["key"]
 	}
 
-	defcertopt := "certs._default_.cert"
-	defkeyopt := "certs._default_.key"
-
-	if viper.IsSet(defcertopt) && viper.IsSet(defkeyopt) {
-		return viper.GetString(defcertopt), viper.GetString(defkeyopt)
+	def, hasdef := configuration.Certs["_default_"]
+	if hasdef {
+		return def["cert"], def["key"]
 	}
 
-	// Seems there was no configuration for this user, nor default... Abandon all attempts
+	// Seems there was no configuration for this user, nor default... Abandon all hope
 	exitWithError("User does not have access to this client")
 	return "", ""
 }

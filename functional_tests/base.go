@@ -146,7 +146,7 @@ func _runRawCommand(t *testing.T, binname, pwd string, envupdates []string, args
 	envupdates = append(
 		envupdates,
 		"USER=admin",
-		"REPOCLIENT_CONFIG="+pwd+".yml",
+		"REPOCLIENT_CONFIG="+pwd+".json",
 	)
 	cmd := exec.Command(
 		binname,
@@ -188,7 +188,7 @@ const (
 
 var (
 	testedCloneMethods = []cloneMethod{
-		cloneMethodHTTPS,
+		//cloneMethodHTTPS,
 		cloneMethodSSH,
 	}
 )
@@ -206,7 +206,7 @@ func createSSHClientConfig(t *testing.T, node nodeNrType, confpath string) {
 	}
 	failIfErr(t, err, "creating client logs folder")
 
-	examplecfgB, err := ioutil.ReadFile("../client_config.yml.example")
+	examplecfgB, err := ioutil.ReadFile("../client_config.json.example")
 	failIfErr(t, err, "reading example config")
 	examplecfg := string(examplecfgB)
 
@@ -295,7 +295,7 @@ func clone(t *testing.T, method cloneMethod, node nodeNrType, reponame, username
 	ourdir, err := ioutil.TempDir(cloneDir, fmt.Sprintf("clone_%s_%s_", reponame, username))
 	failIfErr(t, err, "creating clone directory")
 
-	createSSHClientConfig(t, node, ourdir+".yml")
+	createSSHClientConfig(t, node, ourdir+".json")
 
 	var cmd []string
 	var envupdates []string

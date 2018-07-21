@@ -1,0 +1,19 @@
+{
+    "gitbinary": "/usr/bin/git",
+    "ca": "/etc/pki/repospanner/ca.crt",
+    "baseurl": "https://nodea.regiona.repospanner.local",
+    "certs": {
+        "_default_": {
+            "cert": "/etc/pki/repospanner/client.crt",
+            "key" : "/etc/pki/repospanner/client.key"
+        },
+        "usera": {
+            "cert": "/etc/pki/repospanner/usera.crt",
+            "key" : "/etc/pki/repospanner/usera.key"
+        },
+        "userb": {
+            "cert": "/etc/pki/repospanner/userb.crt",
+            "key" : "/etc/pki/repospanner/userb.key"
+        }
+    }
+}
