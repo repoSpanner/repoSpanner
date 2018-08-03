@@ -13,6 +13,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -366,8 +367,10 @@ func sendPushResult(w io.Writer, hasStatus bool, sbstatus sideBandStatus, result
 		msgs...)
 }
 
+var refRegexp = regexp.MustCompile("^[a-fA-F0-9]{40}$")
+
 func isValidRef(ref string) bool {
-	return len(ref) == 40
+	return refRegexp.MatchString(ref)
 }
 
 func isValidRefName(refname string) bool {
