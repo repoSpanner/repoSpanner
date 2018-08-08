@@ -20,7 +20,7 @@ import (
 
 var (
 	binary           string
-	clientbinary     string
+	bridgebinary     string
 	hookrunnerbinary string
 )
 
@@ -33,22 +33,22 @@ func checkFileExist(t *testing.T, path string) {
 }
 
 func setBinaryPaths(t *testing.T) {
-	if binary != "" && clientbinary != "" {
+	if binary != "" && bridgebinary != "" {
 		return
 	}
 	codedir, err := os.Getwd()
 	failIfErr(t, err, "determining binary paths")
 	codedir = filepath.Join(codedir, "..")
 	possiblebinary := filepath.Join(codedir, "repospanner")
-	possibleclientbinary := filepath.Join(codedir, "repoclient")
+	possiblebridgebinary := filepath.Join(codedir, "repobridge")
 	possiblehookrunnerbinary := filepath.Join(codedir, "repohookrunner")
 
 	checkFileExist(t, possiblebinary)
-	checkFileExist(t, possibleclientbinary)
+	checkFileExist(t, possiblebridgebinary)
 	checkFileExist(t, possiblehookrunnerbinary)
 
 	binary = possiblebinary
-	clientbinary = possibleclientbinary
+	bridgebinary = possiblebridgebinary
 	hookrunnerbinary = possiblehookrunnerbinary
 
 	atleast110, sure := service.IsAtLeastGo110(runtime.Version())
@@ -146,7 +146,7 @@ func _runRawCommand(t *testing.T, binname, pwd string, envupdates []string, args
 	envupdates = append(
 		envupdates,
 		"USER=admin",
-		"REPOCLIENT_CONFIG="+pwd+".json",
+		"REPOBRIDGE_CONFIG="+pwd+".json",
 	)
 	cmd := exec.Command(
 		binname,
@@ -199,14 +199,8 @@ func runForTestedCloneMethods(t *testing.T, m func(*testing.T, cloneMethod)) {
 	}
 }
 
-func createSSHClientConfig(t *testing.T, node nodeNrType, confpath string) {
-	err := os.Mkdir(path.Join(testDir, "clientlogs"), 0755)
-	if os.IsExist(err) {
-		err = nil
-	}
-	failIfErr(t, err, "creating client logs folder")
-
-	examplecfgB, err := ioutil.ReadFile("../client_config.json.example")
+func createSSHBridgeConfig(t *testing.T, node nodeNrType, confpath string) {
+	examplecfgB, err := ioutil.ReadFile("../bridge_config.json.example")
 	failIfErr(t, err, "reading example config")
 	examplecfg := string(examplecfgB)
 
@@ -215,12 +209,6 @@ func createSSHClientConfig(t *testing.T, node nodeNrType, confpath string) {
 		examplecfg,
 		"/etc/pki/repospanner",
 		path.Join(testDir, "ca"),
-		-1,
-	)
-	examplecfg = strings.Replace(
-		examplecfg,
-		"/var/log/repospanner_client/",
-		path.Join(testDir, "clientlogs"),
 		-1,
 	)
 	examplecfg = strings.Replace(
@@ -245,15 +233,15 @@ func createSSHClientConfig(t *testing.T, node nodeNrType, confpath string) {
 	// Write generated config file
 	examplecfgB = []byte(examplecfg)
 	err = ioutil.WriteFile(confpath, examplecfgB, 0644)
-	failIfErr(t, err, "writing client config file")
+	failIfErr(t, err, "writing bridge config file")
 
-	t.Log("Client config for", node, confpath, examplecfg)
+	t.Log("Bridge config for", node, confpath, examplecfg)
 }
 
 func cloneCmdSSH(t *testing.T, node nodeNrType, reponame, username string) (cmd []string, envupdates []string) {
 	cmd = []string{
 		"clone",
-		"ext::" + clientbinary + " " + reponame,
+		"ext::" + bridgebinary + " " + reponame,
 	}
 
 	return
@@ -295,7 +283,7 @@ func clone(t *testing.T, method cloneMethod, node nodeNrType, reponame, username
 	ourdir, err := ioutil.TempDir(cloneDir, fmt.Sprintf("clone_%s_%s_", reponame, username))
 	failIfErr(t, err, "creating clone directory")
 
-	createSSHClientConfig(t, node, ourdir+".json")
+	createSSHBridgeConfig(t, node, ourdir+".json")
 
 	var cmd []string
 	var envupdates []string

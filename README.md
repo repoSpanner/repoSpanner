@@ -95,7 +95,7 @@ http.sslkey=/etc/pki/repospanner/someuser.key
 https://nodea.regiona.repospanner.local/repo/test.git".
 
 Alternatively, for ssh based pushing and pulling, make sure that the users'
-entry console is the `repoclient` binary, and the client_config.yml file is setup
+entry console is the `repobridge` binary, and the client_config.yml file is setup
 in /etc/repospanner.
 This client will automatically revert to plain git if it determines the repo
 that is being pushed to is not a repospanner repository.

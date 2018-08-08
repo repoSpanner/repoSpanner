@@ -18,7 +18,7 @@ func (cfg *Service) serveGitDiscovery(w http.ResponseWriter, r *http.Request, pe
 		http.NotFound(w, r)
 		return
 	}
-	isrepoclient := len(r.Header[http.CanonicalHeaderKey("X-RepoClient-Version")]) == 1
+	isrepobridge := len(r.Header[http.CanonicalHeaderKey("X-RepoBridge-Version")]) == 1
 	service := services[0]
 	w.Header()["Content-Type"] = []string{"application/x-" + service + "-advertisement"}
 	reqlogger = reqlogger.WithField("service", service)
@@ -35,7 +35,7 @@ func (cfg *Service) serveGitDiscovery(w http.ResponseWriter, r *http.Request, pe
 
 		w.WriteHeader(200)
 
-		if !isrepoclient {
+		if !isrepobridge {
 			if err := sendPacket(w, []byte("# service="+service+"\n")); err != nil {
 				http.NotFound(w, r)
 				return

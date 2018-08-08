@@ -1,6 +1,6 @@
 # Binaries for programs and plugins
 /repospanner
-/repoclient
+/repobridge
 /repohookrunner
 *.exe
 *.dll

@@ -67,10 +67,10 @@ func findProjectAndOp(parts []string) (string, string) {
 func (cfg *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	reqlogger, perminfo := cfg.prereq(w, r, "gitservice")
 
-	repoclient := r.Header[http.CanonicalHeaderKey("X-RepoClient-Version")]
-	if len(repoclient) != 0 {
+	repobridge := r.Header[http.CanonicalHeaderKey("X-RepoBridge-Version")]
+	if len(repobridge) != 0 {
 		reqlogger = reqlogger.WithField(
-			"RepoClient-Version", repoclient,
+			"RepoBridge-Version", repobridge,
 		)
 	}
 
