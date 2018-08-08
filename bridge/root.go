@@ -1,4 +1,4 @@
-package client
+package bridge
 
 import (
 	"bytes"
@@ -112,9 +112,9 @@ func isRawGitRepo(path string) (rawgit bool, gsname string, err error) {
 }
 
 func loadConfig() {
-	cfgFile := os.Getenv("REPOCLIENT_CONFIG")
+	cfgFile := os.Getenv("REPOBRIDGE_CONFIG")
 	if cfgFile=="" {
-		cfgFile = "/etc/repospanner/client_config.json"
+		cfgFile = "/etc/repospanner/bridge_config.json"
 	}
 	cts, err := ioutil.ReadFile(cfgFile)
 	checkError(err, "Error reading configuration")
@@ -122,7 +122,7 @@ func loadConfig() {
 	checkError(err, "Error parsing configuration")
 }
 
-func ExecuteClient() {
+func ExecuteBridge() {
 	username = os.Getenv("USER")
 	if username == "" {
 		exitWithError("Unable to determine username")
@@ -218,6 +218,6 @@ func getCertAndKey() (string, string) {
 	}
 
 	// Seems there was no configuration for this user, nor default... Abandon all hope
-	exitWithError("User does not have access to this client")
+	exitWithError("User does not have access to this bridge")
 	return "", ""
 }

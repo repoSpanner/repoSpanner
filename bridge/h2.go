@@ -1,6 +1,6 @@
 // +build !nonh2
 
-package client
+package bridge
 
 import (
 	"net/http"
@@ -8,7 +8,7 @@ import (
 	"golang.org/x/net/http2"
 )
 
-// HasH2 returns whether this client was compiled with h2 support
+// HasH2 returns whether this bridge was compiled with h2 support
 func HasH2() bool {
 	return true
 }

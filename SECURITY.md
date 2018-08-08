@@ -13,7 +13,7 @@ The RPC endpoint is used for communication between different nodes and within a 
 It has very low-level calls that could bring the system in an inconsistent state by performing invalid requests.
 It can be firewalled so that only the other nodes and each node itself can communicate to it.
 
-The user endpoint is used for requests by user clients (be that Git, repoclient, or any other client).
+The user endpoint is used for requests by user clients (be that Git, repobridge, or any other client).
 TLS client certificates are optional, although unauthenticated requests are only able to clone public repositories and get the high-level version information of the system.
 This endpoint should be available from clients who need access to the repositories on this system.
 

@@ -1,12 +1,12 @@
 // +build nonh2
 
-package client
+package bridge
 
 import (
 	"net/http"
 )
 
-// HasH2 returns whether this client was compiled with h2 support
+// HasH2 returns whether this bridge was compiled with h2 support
 func HasH2() bool {
 	return false
 }

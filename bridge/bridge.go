@@ -1,4 +1,4 @@
-package client
+package bridge
 
 import (
 	"crypto/tls"
@@ -20,26 +20,26 @@ func getClient() *http.Client {
 
 	cert, key := getCertAndKey()
 
-	clientcert, err := tls.LoadX509KeyPair(
+	bridgecert, err := tls.LoadX509KeyPair(
 		cert,
 		key,
 	)
-	checkError(err, "Error initializing client")
+	checkError(err, "Error initializing bridge")
 
 	var certpool *x509.CertPool
 	capath := configuration.Ca
 	if capath != "" {
 		cts, err := ioutil.ReadFile(capath)
-		checkError(err, "Error initializing client ca")
+		checkError(err, "Error initializing bridge ca")
 		certpool = x509.NewCertPool()
 		if ok := certpool.AppendCertsFromPEM(cts); !ok {
-			exitWithError("Error initializing client ca")
+			exitWithError("Error initializing bridge ca")
 		}
 	}
 
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{
-			Certificates:             []tls.Certificate{clientcert},
+			Certificates:             []tls.Certificate{bridgecert},
 			NextProtos:               []string{"h2"},
 			PreferServerCipherSuites: true,
 			MinVersion:               tls.VersionTLS12,
@@ -60,7 +60,7 @@ func getURL(service, reponame string) string {
 }
 
 func bridge(r *http.Request) {
-	r.Header["X-RepoClient-Version"] = []string{constants.VersionString()}
+	r.Header["X-RepoBridge-Version"] = []string{constants.VersionString()}
 
 	resp, err := getClient().Do(r)
 	checkError(
