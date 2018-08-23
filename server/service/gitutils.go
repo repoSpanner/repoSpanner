@@ -389,6 +389,18 @@ func isValidRefName(refname string) bool {
 	if strings.Contains(refname, "..") {
 		return false
 	}
+	if strings.Contains(refname, " ") {
+		return false
+	}
+	if strings.Contains(refname, "~") {
+		return false
+	}
+	if strings.Contains(refname, "^") {
+		return false
+	}
+	if strings.Contains(refname, ":") {
+		return false
+	}
 	// TODO: ASCII control chars
 	if strings.HasSuffix(refname, "/") {
 		return false
