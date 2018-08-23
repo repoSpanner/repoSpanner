@@ -1,8 +1,13 @@
 package service
 
 import (
+	"compress/zlib"
+	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
+
+	"repospanner.org/repospanner/server/storage"
 
 	"github.com/sirupsen/logrus"
 	"repospanner.org/repospanner/server/constants"
@@ -132,6 +137,48 @@ func (cfg *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 			cfg.serveGitReceivePack(w, r, reqlogger, reponame)
+			return
+		} else if command == "simple/refs" {
+			w.WriteHeader(200)
+			for refname, refval := range cfg.statestore.getGitRefs(reponame) {
+				fmt.Fprintf(w, "real\x00%s\x00%s\x00\n", refname, refval)
+			}
+			for refname, refval := range cfg.statestore.getSymRefs(reponame) {
+				fmt.Fprintf(w, "symb\x00%s\x00%s\x00\n", refname, refval)
+			}
+			return
+		} else if strings.HasPrefix(command, "simple/object/") {
+			objectids := command[len("simple/object/"):]
+			if !isValidRef(objectids) {
+				http.NotFound(w, r)
+				return
+			}
+			objectid := storage.ObjectID(objectids)
+			projdriver := cfg.gitstore.GetProjectStorage(reponame)
+			objtype, objsize, reader, err := projdriver.ReadObject(objectid)
+			if err == storage.ErrObjectNotFound {
+				http.NotFound(w, r)
+				return
+			} else if err != nil {
+				http.Error(w, "Error retrieving object", 500)
+				return
+			}
+
+			w.Header()["X-ObjectType"] = []string{strconv.FormatUint(uint64(objtype), 10)}
+			w.Header()["X-ObjectSize"] = []string{strconv.FormatUint(uint64(objsize), 10)}
+			w.WriteHeader(200)
+			zwriter := zlib.NewWriter(w)
+			fmt.Fprintf(zwriter, "%s %d\x00", objtype.HdrName(), objsize)
+			if _, err = flushToFrom(zwriter, reader, objsize); err != nil {
+				reqlogger.Error("Error writing data", err)
+				http.Error(w, "Error writing", 500)
+				return
+			}
+			if err = zwriter.Close(); err != nil {
+				reqlogger.Error("Error closing zwriter", err)
+				http.Error(w, "Error writing", 500)
+				return
+			}
 			return
 		}
 		reqlogger.Debug("Unknown command requested")
