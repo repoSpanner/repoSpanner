@@ -1,8 +1,12 @@
 package service
 
 import (
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
+
+	"repospanner.org/repospanner/server/storage"
 
 	"github.com/sirupsen/logrus"
 	"repospanner.org/repospanner/server/constants"
@@ -132,6 +136,39 @@ func (cfg *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 			cfg.serveGitReceivePack(w, r, reqlogger, reponame)
+			return
+		} else if command == "simple/refs" {
+			w.WriteHeader(200)
+			for refname, refval := range cfg.statestore.getGitRefs(reponame) {
+				fmt.Fprintln(w, "real", refname, refval)
+			}
+			for refname, refval := range cfg.statestore.getSymRefs(reponame) {
+				fmt.Fprintln(w, "sym", refname, refval)
+			}
+			return
+		} else if strings.HasPrefix(command, "simple/object/") {
+			objectids := command[len("simple/object/"):]
+			if !isValidRef(objectids) {
+				http.NotFound(w, r)
+				return
+			}
+			objectid := storage.ObjectID(objectids)
+			projdriver := cfg.gitstore.GetProjectStorage(reponame)
+			objtype, objsize, reader, err := projdriver.ReadObject(objectid)
+			if err == storage.ErrObjectNotFound {
+				http.NotFound(w, r)
+				return
+			} else if err != nil {
+				http.Error(w, "Error retrieving object", 500)
+				return
+			}
+
+			w.WriteHeader(200)
+			fmt.Fprintf(w, "%s %d\x00", objtype.HdrName(), objsize)
+			_, err = io.Copy(w, reader)
+			if err != nil {
+				http.Error(w, "Error writing", 500)
+			}
 			return
 		}
 		reqlogger.Debug("Unknown command requested")
