@@ -1,10 +1,10 @@
 package service
 
 import (
+	"compress/zlib"
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"repospanner.org/repospanner/server/storage"
@@ -141,10 +141,10 @@ func (cfg *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if command == "simple/refs" {
 			w.WriteHeader(200)
 			for refname, refval := range cfg.statestore.getGitRefs(reponame) {
-				fmt.Fprintln(w, "real", refname, refval)
+				fmt.Fprintf(w, "real\x00%s\x00%s\x00\n", refname, refval)
 			}
 			for refname, refval := range cfg.statestore.getSymRefs(reponame) {
-				fmt.Fprintln(w, "sym", refname, refval)
+				fmt.Fprintf(w, "symb\x00%s\x00%s\x00\n", refname, refval)
 			}
 			return
 		} else if strings.HasPrefix(command, "simple/object/") {
@@ -165,10 +165,17 @@ func (cfg *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 			w.WriteHeader(200)
-			fmt.Fprintf(w, "%s %d\x00", objtype.HdrName(), objsize)
-			_, err = io.Copy(w, reader)
-			if err != nil {
+			zwriter := zlib.NewWriter(w)
+			fmt.Fprintf(zwriter, "%s %d\x00", objtype.HdrName(), objsize)
+			if _, err = io.Copy(zwriter, reader); err != nil {
+				reqlogger.Error("Error writing object", err)
 				http.Error(w, "Error writing", 500)
+				return
+			}
+			if err = zwriter.Close(); err != nil {
+				reqlogger.Error("Error writing object", err)
+				http.Error(w, "Error writing", 500)
+				return
 			}
 			return
 		}
