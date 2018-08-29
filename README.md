@@ -87,12 +87,19 @@ Or, again, start the `repospanner.service` unit file.
 Repository access
 -----------------
 
-After this, the service will be available on
-https://<node.fqdn>:<httpsport>/, for git repo pull/push, add a
-/repo/<repo-name>.git.  Example clone command: "git clone --config
-http.sslcert=/etc/pki/repospanner/someuser.crt --config
-http.sslkey=/etc/pki/repospanner/someuser.key
+After this, the service will be available on https://<node.fqdn>/ 
+    
+For git repo pull/push, add a /repo/<repo-name>.git.  
+Example clone command for default https port on tcp/443 and repo name being "test"
+
+```
+git clone \
+--config http.sslcert=/etc/pki/repospanner/someuser.crt \
+--config http.sslkey=/etc/pki/repospanner/someuser.key \
+--config http.sslCAinfo=/etc/pki/repospanner/<repospanner-CA>.crt \
 https://nodea.regiona.repospanner.local/repo/test.git".
+
+```
 
 Alternatively, for ssh based pushing and pulling, make sure that the users'
 entry console is the `repobridge` binary, and the client_config.yml file is setup
