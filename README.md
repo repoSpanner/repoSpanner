@@ -74,7 +74,7 @@ And then, to run it:
 Or start the `repospanner.service` unit file.  Then on any further nodes,
 run: `repospanner serve --join https://<running.node.fqdn>:<rpcport>`, e.g.:
 
-    $ repospanner serve --join \
+    $ repospanner serve --joinnode \
         https://nodea.regiona.repospanner.local:8443
 
 And then run:
