@@ -75,7 +75,6 @@ func (cfg *Service) serveAdminCreateRepo(w http.ResponseWriter, r *http.Request)
 		createreporequest.Public,
 	)
 	if err != nil {
-		w.WriteHeader(200)
 		cfg.respondJSONResponse(w, datastructures.CommandResponse{
 			Success: false,
 			Error:   err.Error(),
@@ -83,7 +82,6 @@ func (cfg *Service) serveAdminCreateRepo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	w.WriteHeader(200)
 	cfg.respondJSONResponse(w, datastructures.CommandResponse{
 		Success: true,
 	})
@@ -98,7 +96,6 @@ func (cfg *Service) serveAdminEditRepo(w http.ResponseWriter, r *http.Request) {
 
 	remarshal, err := json.Marshal(editreporequest)
 	if err != nil {
-		w.WriteHeader(200)
 		cfg.respondJSONResponse(w, datastructures.CommandResponse{
 			Success: false,
 			Error:   err.Error(),
@@ -111,7 +108,6 @@ func (cfg *Service) serveAdminEditRepo(w http.ResponseWriter, r *http.Request) {
 		remarshal,
 	)
 	if err != nil {
-		w.WriteHeader(200)
 		cfg.respondJSONResponse(w, datastructures.CommandResponse{
 			Success: false,
 			Error:   err.Error(),
@@ -119,7 +115,6 @@ func (cfg *Service) serveAdminEditRepo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(200)
 	cfg.respondJSONResponse(w, datastructures.CommandResponse{
 		Success: true,
 	})
@@ -127,7 +122,6 @@ func (cfg *Service) serveAdminEditRepo(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *Service) serveAdminListRepos(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(200)
 	cfg.respondJSONResponse(w, datastructures.RepoList{
 		Repos: cfg.statestore.GetRepos(),
 	})

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path"
 	"strings"
 
 	"repospanner.org/repospanner/server/storage"
@@ -85,7 +86,7 @@ func (cfg *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("TLS Required"))
 		return
 	}
-	pathparts := strings.Split(r.URL.Path, "/")[1:]
+	pathparts := strings.Split(path.Clean(r.URL.Path), "/")[1:]
 
 	if len(pathparts) == 1 && pathparts[0] == "" {
 		reqlogger.Debug("Root page requested")
@@ -205,8 +206,6 @@ func (cfg *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if pathparts[1] == "hook" {
 			cfg.serveAdminHooksMgmt(w, r)
 			return
-		} else {
-			http.NotFound(w, r)
 		}
 	}
 
