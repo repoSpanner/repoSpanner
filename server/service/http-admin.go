@@ -121,6 +121,29 @@ func (cfg *Service) serveAdminEditRepo(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
+func (cfg *Service) serveAdminDeleteRepo(w http.ResponseWriter, r *http.Request) {
+	var deletereporequest datastructures.RepoDeleteRequest
+	if cont := cfg.parseJSONRequest(w, r, &deletereporequest); !cont {
+		return
+	}
+
+	err := cfg.statestore.deleteRepo(
+		deletereporequest.Reponame,
+	)
+	if err != nil {
+		cfg.respondJSONResponse(w, datastructures.CommandResponse{
+			Success: false,
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	cfg.respondJSONResponse(w, datastructures.CommandResponse{
+		Success: true,
+	})
+	return
+}
+
 func (cfg *Service) serveAdminListRepos(w http.ResponseWriter, r *http.Request) {
 	cfg.respondJSONResponse(w, datastructures.RepoList{
 		Repos: cfg.statestore.GetRepos(),

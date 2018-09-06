@@ -451,6 +451,15 @@ func (store *stateStore) readCommits() {
 			store.mux.Unlock()
 			store.announceRepoChanges(r.GetReponame(), req)
 
+		case pb.ChangeRequest_DELETEREPO:
+			r := req.GetDeletereporeq()
+
+			store.cfg.log.Debug("Delete repo request received")
+			store.mux.Lock()
+			delete(store.repoinfos, r.GetReponame())
+			store.mux.Unlock()
+			store.announceRepoChanges(r.GetReponame(), req)
+
 		case pb.ChangeRequest_PUSHREQUEST:
 			r := req.GetPushreq()
 
@@ -490,6 +499,32 @@ func (store *stateStore) createRepo(repo string, public bool) error {
 	rcreq := <-crC
 	if rcreq.GetNewreporeq() == nil {
 		return errors.New("Received a non-new-repo-req response")
+	}
+	return nil
+}
+
+func (store *stateStore) deleteRepo(repo string) error {
+	_, exists := store.repoinfos[repo]
+	if !exists {
+		return errors.Errorf("Repo %s does not exists", repo)
+	}
+	creq := &pb.ChangeRequest{
+		Ctype: pb.ChangeRequest_DELETEREPO.Enum(),
+		Deletereporeq: &pb.DeleteRepoRequest{
+			Reponame: &repo,
+		},
+	}
+	out, err := proto.Marshal(creq)
+	if err != nil {
+		return errors.Wrap(err, "Error marshalling deleterepo request")
+	}
+	store.cfg.log.Info("Repo deletion requested")
+	crC := store.subscribeRepoChangeRequest(repo)
+	defer store.unsubscribeRepoChangeRequest(repo, crC)
+	store.proposeC <- out
+	rcreq := <-crC
+	if rcreq.GetDeletereporeq() == nil {
+		return errors.New("Received a non-delete-repo-req response")
 	}
 	return nil
 }

@@ -39,6 +39,10 @@ type RepoUpdateRequest struct {
 	UpdateRequest map[RepoUpdateField]string
 }
 
+type RepoDeleteRequest struct {
+	Reponame string
+}
+
 type RepoList struct {
 	Repos map[string]RepoInfo
 }

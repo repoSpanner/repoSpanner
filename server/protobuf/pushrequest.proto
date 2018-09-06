@@ -34,7 +34,7 @@ message ChangeRequest {
     enum ChangeRequestType {
         NEWREPO = 1;
         EDITREPO = 2;
-        // DELETEREPO = 3;  // This is not yet implemented
+        DELETEREPO = 3;
         PUSHREQUEST = 4;
     }
     required ChangeRequestType ctype = 1;

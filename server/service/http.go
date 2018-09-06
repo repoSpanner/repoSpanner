@@ -203,6 +203,9 @@ func (cfg *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if pathparts[1] == "listrepos" {
 			cfg.serveAdminListRepos(w, r)
 			return
+		} else if pathparts[1] == "deleterepo" {
+			cfg.serveAdminDeleteRepo(w, r)
+			return
 		} else if pathparts[1] == "hook" {
 			cfg.serveAdminHooksMgmt(w, r)
 			return
