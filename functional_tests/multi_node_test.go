@@ -6,7 +6,7 @@ import (
 )
 
 func nodeInfoVerification(t *testing.T, node nodeNrType) {
-	nodeinfo := runCommand(t, node.Name(), "admin", "nodeinfo", "--json")
+	nodeinfo := runCommand(t, node.Name(), "admin", "nodestatus", "--json")
 	t.Log("Node info: ", nodeinfo)
 	if !strings.Contains(nodeinfo, "https://node1.regiona.repospanner.local:1444") {
 		t.Error("Node A url not in node info")
