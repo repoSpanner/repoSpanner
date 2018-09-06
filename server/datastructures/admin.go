@@ -56,6 +56,14 @@ type NodeInfo struct {
 	Peers       map[uint64]string
 }
 
+type NodeStatus struct {
+	NodeInfo
+
+	LeaderNode uint64
+
+	Status string
+}
+
 type HookRunRequest struct {
 	RPCURL       string
 	ProjectName  string

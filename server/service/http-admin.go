@@ -25,6 +25,24 @@ func (cfg *Service) getNodeInfo() datastructures.NodeInfo {
 	}
 }
 
+func (cfg *Service) getNodeStatus() datastructures.NodeStatus {
+	rn := cfg.statestore.raftnode
+	rnstatus := rn.node.Status()
+	rntransport := rn.transport
+
+	return datastructures.NodeStatus{
+		NodeInfo: cfg.getNodeInfo(),
+
+		// Raft node status
+		LeaderNode: rnstatus.Lead,
+
+		// Raft transport status
+		Status: string(rntransport.LeaderStats.JSON()),
+
+		// TODO: Add other status info
+	}
+}
+
 func (cfg *Service) parseJSONRequest(w http.ResponseWriter, r *http.Request, out interface{}) (cont bool) {
 	if r.Method != "POST" {
 		w.WriteHeader(405)
@@ -59,8 +77,8 @@ func (cfg *Service) respondJSONResponse(w http.ResponseWriter, in interface{}) {
 	w.Write(cts)
 }
 
-func (cfg *Service) serveAdminNodeInfo(w http.ResponseWriter, r *http.Request) {
-	info := cfg.getNodeInfo()
+func (cfg *Service) serveAdminNodeStatus(w http.ResponseWriter, r *http.Request) {
+	info := cfg.getNodeStatus()
 	cfg.respondJSONResponse(w, info)
 }
 

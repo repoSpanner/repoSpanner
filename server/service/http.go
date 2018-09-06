@@ -191,8 +191,8 @@ func (cfg *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte("No authorized for admin access\n"))
 			return
 		}
-		if pathparts[1] == "nodeinfo" {
-			cfg.serveAdminNodeInfo(w, r)
+		if pathparts[1] == "nodestatus" {
+			cfg.serveAdminNodeStatus(w, r)
 			return
 		} else if pathparts[1] == "createrepo" {
 			cfg.serveAdminCreateRepo(w, r)

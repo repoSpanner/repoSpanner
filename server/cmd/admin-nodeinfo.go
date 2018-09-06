@@ -8,19 +8,19 @@ import (
 )
 
 var adminNodeInfoCmd = &cobra.Command{
-	Use:   "nodeinfo",
-	Short: "Get node info",
+	Use:   "nodestatus",
+	Short: "Get node status",
 	Long:  `Print information about a node.`,
-	Run:   runAdminNodeInfo,
+	Run:   runAdminNodeStatus,
 	Args:  cobra.ExactArgs(0),
 }
 
-func runAdminNodeInfo(cmd *cobra.Command, args []string) {
+func runAdminNodeStatus(cmd *cobra.Command, args []string) {
 	clnt := getAdminClient()
 	var resp datastructures.NodeInfo
 
 	shouldExit := clnt.Perform(
-		"admin/nodeinfo",
+		"admin/nodestatus",
 		&resp,
 	)
 	if shouldExit {
