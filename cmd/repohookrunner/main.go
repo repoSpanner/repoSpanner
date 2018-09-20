@@ -68,7 +68,7 @@ func main() {
 	// At this moment, we have lowered privileges. Clone the repo
 	workdir, err := ioutil.TempDir("", "repospanner_hook_runner_")
 	failIfError(err, "Error creating runner work directory")
-	//defer os.RemoveAll(workdir)
+	defer os.RemoveAll(workdir)
 	err = os.Mkdir(path.Join(workdir, "hookrun"), 0755)
 	failIfError(err, "Error creating runner work directory")
 	err = os.Mkdir(path.Join(workdir, "keys"), 0700)
@@ -164,7 +164,23 @@ func runHook(request datastructures.HookRunRequest, workdir string, branch strin
 			"--bind", path.Join(workdir, "hookrun"), "/hookrun",
 			"--chdir", "/hookrun/clone",
 			"--setenv", "GIT_DIR", "/hookrun/clone",
-			"/hookrun/script",
+			"--setenv", "HOOKTYPE", request.Hook,
+		)
+
+		for key, val := range request.ExtraEnv {
+			bwrapcmd = append(
+				bwrapcmd,
+				"--setenv", "extra_"+key, val,
+			)
+		}
+
+		bwrapcmd = append(
+			bwrapcmd,
+			path.Join("/hookrun", request.Hook),
+		)
+		bwrapcmd = append(
+			bwrapcmd,
+			hookArgs...,
 		)
 		cmd = exec.Command(
 			"bwrap",
@@ -172,14 +188,22 @@ func runHook(request datastructures.HookRunRequest, workdir string, branch strin
 		)
 	} else {
 		cmd = exec.Command(
-			path.Join(workdir, "hookrun", "script"),
+			path.Join(workdir, "hookrun", request.Hook),
 			hookArgs...,
 		)
 		cmd.Dir = path.Join(workdir, "hookrun", "clone")
 		cmd.Env = []string{
 			"GIT_DIR=" + cmd.Path,
 		}
+
+		for key, val := range request.ExtraEnv {
+			cmd.Env = append(
+				cmd.Env,
+				"extra_"+key+"="+val,
+			)
+		}
 	}
+
 	cmd.Stdin = hookbuf
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
@@ -221,7 +245,7 @@ func getScript(request datastructures.HookRunRequest, workdir string) {
 	}
 
 	// Grab the hook script itself
-	script, err := os.Create(path.Join(workdir, "hookrun", "script"))
+	script, err := os.Create(path.Join(workdir, "hookrun", request.Hook))
 	failIfError(err, "Error opening script file")
 	resp, err := clnt.Get(
 		request.RPCURL + "/rpc/object/single/admin/hooks.git/" + request.HookObject,

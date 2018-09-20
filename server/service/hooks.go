@@ -23,7 +23,7 @@ const (
 	hookTypePostReceive hookType = "post-receive"
 )
 
-func (cfg *Service) runHook(hook hookType, errout, infoout io.Writer, projectname string, request *pb.PushRequest) error {
+func (cfg *Service) runHook(hook hookType, errout, infoout io.Writer, projectname string, request *pb.PushRequest, extraEnv map[string]string) error {
 	hooks := cfg.statestore.GetRepoHooks(projectname)
 	var hookid storage.ObjectID
 	switch hook {
@@ -72,6 +72,7 @@ func (cfg *Service) runHook(hook hookType, errout, infoout io.Writer, projectnam
 		ClientCaCert: string(clientcacert),
 		ClientCert:   string(clientcert),
 		ClientKey:    string(clientkey),
+		ExtraEnv:     extraEnv,
 	}
 	for _, req := range request.Requests {
 		reqt := [2]string{req.GetFrom(), req.GetTo()}

@@ -64,4 +64,5 @@ type HookRunRequest struct {
 	ClientCaCert string
 	ClientCert   string
 	ClientKey    string
+	ExtraEnv     map[string]string
 }

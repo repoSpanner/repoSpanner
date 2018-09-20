@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 	"repospanner.org/repospanner/server/storage"
@@ -52,6 +53,15 @@ func (cfg *Service) serveGitReceivePack(w http.ResponseWriter, r *http.Request, 
 	}
 
 	cfg.maybeSayHello(rw, sbstatus)
+
+	// Get extra information to pass into any hooks we might run
+	hookExtras := make(map[string]string)
+	for key, value := range r.Header {
+		if strings.HasPrefix(key, "X-Extra-") {
+			key = key[8:]
+			hookExtras[strings.ToLower(key)] = value[0]
+		}
+	}
 
 	// Perform a pre-check to determine whether there's any chance of success after we parse all the objects
 	cfg.debugPacket(rw, sbstatus, "Performing pre-check...")
@@ -317,6 +327,7 @@ func (cfg *Service) serveGitReceivePack(w http.ResponseWriter, r *http.Request, 
 		infosender,
 		reponame,
 		toupdate,
+		hookExtras,
 	)
 	if err != nil {
 		reqlogger.WithError(err).Debug("Pre-receive hook refused push")
@@ -333,6 +344,7 @@ func (cfg *Service) serveGitReceivePack(w http.ResponseWriter, r *http.Request, 
 		infosender,
 		reponame,
 		toupdate,
+		hookExtras,
 	)
 	if err != nil {
 		reqlogger.WithError(err).Debug("Update hook refused push")
@@ -363,6 +375,7 @@ func (cfg *Service) serveGitReceivePack(w http.ResponseWriter, r *http.Request, 
 		infosender,
 		reponame,
 		toupdate,
+		hookExtras,
 	)
 	if err != nil {
 		reqlogger.WithError(err).Debug("Post-receive hook failed")
