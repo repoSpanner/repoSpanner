@@ -44,7 +44,7 @@ func performHookTest(t *testing.T, method cloneMethod) {
 		t.Fatal("Hook did not run")
 	}
 	if useBubbleWrap {
-		if !strings.Contains(out, "PS: 3") {
+		if !strings.Contains(out, "PS: 3") && !strings.Contains(out, "PS: 2") {
 			t.Fatal("Did not get bubble wrapped")
 		}
 		if !strings.Contains(out, "Hostname: myhostname") {
