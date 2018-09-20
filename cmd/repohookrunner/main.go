@@ -281,26 +281,37 @@ func bwrapGetBool(bwrap map[string]interface{}, opt string, required bool) bool 
 	return val
 }
 
-func bwrapAddStringMap(bwrap map[string]interface{}, opt string, cmd []string) []string {
+func bwrapAddFakeStringMap(bwrap map[string]interface{}, opt string, cmd []string) []string {
 	argname := "--" + strings.Replace(opt, "_", "-", -1)
 	vali, exists := bwrap[opt]
 	if !exists || vali == nil {
 		return cmd
 	}
-	val, ok := vali.(map[string]interface{})
+	val, ok := vali.([]interface{})
 	if !ok {
-		failNow("BWrap configuration invalid: " + opt + " not string map")
+		failNow("BWrap configuration invalid: " + opt + " not fake string map")
 	}
-	for key, valuei := range val {
-		value, ok := valuei.(string)
+	for _, valuei := range val {
+		value, ok := valuei.([]interface{})
 		if !ok {
-			failNow("BWrap configuration invalid: " + opt + " not string map")
+			failNow("BWrap configuration invalid: " + opt + " not string map1")
+		}
+		if len(value) != 2 {
+			failNow("BWrap configuration invalid: " + opt + " has entry with invalid length")
+		}
+		key, ok := value[0].(string)
+		if !ok {
+			failNow("BWrap configuration invalid: " + opt + " has invalid entry")
+		}
+		keyval, ok := value[1].(string)
+		if !ok {
+			failNow("BWrap configuration invalid: " + opt + " has invalid entry")
 		}
 		cmd = append(
 			cmd,
 			argname,
 			key,
-			value,
+			keyval,
 		)
 	}
 	return cmd
@@ -376,9 +387,9 @@ func getBwrapConfig(bwrap map[string]interface{}) (usebwrap bool, cmd []string) 
 		cmd = append(cmd, "--dev", "/dev")
 	}
 
-	cmd = bwrapAddStringMap(bwrap, "bind", cmd)
-	cmd = bwrapAddStringMap(bwrap, "ro_bind", cmd)
-	cmd = bwrapAddStringMap(bwrap, "symlink", cmd)
+	cmd = bwrapAddFakeStringMap(bwrap, "bind", cmd)
+	cmd = bwrapAddFakeStringMap(bwrap, "ro_bind", cmd)
+	cmd = bwrapAddFakeStringMap(bwrap, "symlink", cmd)
 	cmd = bwrapAddString(bwrap, "hostname", cmd)
 	cmd = bwrapAddInt(bwrap, "uid", cmd)
 	cmd = bwrapAddInt(bwrap, "gid", cmd)

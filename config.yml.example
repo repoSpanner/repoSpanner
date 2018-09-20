@@ -43,9 +43,12 @@ hooks:
     hostname: myhostname
     bind:
     ro_bind:
-      /usr: /usr
+    - - /usr
+      - /usr
     symlink:
-      usr/lib64: /lib64
-      usr/bin: /bin
+    - - usr/lib64
+      - /lib64
+    - - usr/bin
+      - /bin
   runner: /usr/bin/repohookrunner
   user: 0
