@@ -125,26 +125,29 @@ func sendSideBandPacket(w io.Writer, sbstatus sideBandStatus, sb sideBand, packe
 		}
 		// No sideband, no data... Ignore
 		return nil
-	} else if sbstatus == sideBandStatusSmall {
-		// Break up in chunks of at most 999 bytes
-		const MAXLEN = 999
-		start := 0
-		for start <= len(packet)+999 {
-			end := start + 999
-			if end >= len(packet) {
-				end = len(packet) - 1
-			}
-			tosend := append([]byte{byte(sb)}, packet[start:end]...)
-			if err := sendPacket(w, tosend); err != nil {
-				return err
-			}
-		}
-		return nil
-	} else {
-		// Large sideband will probably be the default
-		pkt := append([]byte{byte(sb)}, packet...)
-		return sendPacket(w, pkt)
 	}
+
+	var maxsize int
+	if sbstatus == sideBandStatusSmall {
+		maxsize = 990
+	} else {
+		// This is smaller than the max packet size of 65520, to account
+		// for the overhead of packet length and sideband indicator.
+		maxsize = 65500
+	}
+
+	// Break up in chunks of at most maxsize bytes
+	for start := 0; start < len(packet); start += maxsize {
+		end := start + maxsize
+		if end >= len(packet) {
+			end = len(packet)
+		}
+		tosend := append([]byte{byte(sb)}, packet[start:end]...)
+		if err := sendPacket(w, tosend); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (cfg *Service) debugPacket(w io.Writer, sbstatus sideBandStatus, msg string) {
