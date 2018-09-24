@@ -18,7 +18,7 @@ import (
 type hookType string
 
 const (
-	hookTypePreReceive  hookType = "pre-receieve"
+	hookTypePreReceive  hookType = "pre-receive"
 	hookTypeUpdate      hookType = "update"
 	hookTypePostReceive hookType = "post-receive"
 )
