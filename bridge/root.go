@@ -15,13 +15,13 @@ import (
 
 type config struct {
 	GitBinary string
-	Ca string
-	BaseURL string
-	Certs map[string]map[string]string
+	Ca        string
+	BaseURL   string
+	Certs     map[string]map[string]string
 }
 
 var (
-	username string
+	username      string
 	configuration config
 )
 
@@ -77,6 +77,9 @@ func checkError(err error, errmsg string, extra ...interface{}) {
 
 func callGit(command, repo string) {
 	gitbinary := configuration.GitBinary
+	if gitbinary == "" {
+		exitWithError("No fallback to git enabled")
+	}
 	err := syscall.Exec(
 		gitbinary,
 		append(
@@ -91,7 +94,7 @@ func callGit(command, repo string) {
 	os.Exit(1)
 }
 
-func isRawGitRepo(path string) (rawgit bool, gsname string, err error) {
+func isRawGitRepo(path string) (rawgit bool, rsname string, err error) {
 	_, err = os.Stat(path)
 	if !os.IsNotExist(err) {
 		// Either it existed, or we weren't able to check. Assume it's git either way
@@ -104,16 +107,16 @@ func isRawGitRepo(path string) (rawgit bool, gsname string, err error) {
 	// It did not exist, assume it's a repospanner name.
 	// In repospanner, we want to remove the trailing .git
 	if strings.HasSuffix(path, ".git") {
-		gsname = path[:len(path)-4]
+		rsname = path[:len(path)-4]
 	} else {
-		gsname = path
+		rsname = path
 	}
 	return
 }
 
 func loadConfig() {
 	cfgFile := os.Getenv("REPOBRIDGE_CONFIG")
-	if cfgFile=="" {
+	if cfgFile == "" {
 		cfgFile = "/etc/repospanner/bridge_config.json"
 	}
 	cts, err := ioutil.ReadFile(cfgFile)
@@ -133,7 +136,7 @@ func ExecuteBridge() {
 	// Just call this to make sure we abort loudly early on if the user has no access
 	getCertAndKey()
 
-	if configuration.GitBinary == "" || configuration.BaseURL == "" {
+	if configuration.BaseURL == "" {
 		exitWithError("Invalid configuration file")
 		os.Exit(1)
 	}
