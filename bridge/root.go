@@ -78,9 +78,6 @@ func checkError(err error, errmsg string, extra ...interface{}) {
 
 func callGit(command, repo string) {
 	gitbinary := configuration.GitBinary
-	if gitbinary == "" {
-		exitWithError("No fallback to git enabled")
-	}
 	err := syscall.Exec(
 		gitbinary,
 		append(
@@ -96,12 +93,14 @@ func callGit(command, repo string) {
 }
 
 func isRawGitRepo(path string) (rawgit bool, rsname string, err error) {
-	_, err = os.Stat(path)
-	if !os.IsNotExist(err) {
-		// Either it existed, or we weren't able to check. Assume it's git either way
-		rawgit = true
-		err = nil
-		return
+	if configuration.GitBinary != "" {
+		_, err = os.Stat(path)
+		if !os.IsNotExist(err) {
+			// Either it existed, or we weren't able to check. Assume it's git either way
+			rawgit = true
+			err = nil
+			return
+		}
 	}
 
 	err = nil
