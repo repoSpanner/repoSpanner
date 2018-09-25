@@ -18,6 +18,7 @@ type config struct {
 	Ca        string
 	BaseURL   string
 	Certs     map[string]map[string]string
+	Extras    map[string]string
 }
 
 var (
@@ -123,6 +124,51 @@ func loadConfig() {
 	checkError(err, "Error reading configuration")
 	err = json.Unmarshal(cts, &configuration)
 	checkError(err, "Error parsing configuration")
+
+	if configuration.Extras == nil {
+		// If nothing was configured, start with an empty map
+		configuration.Extras = make(map[string]string)
+	}
+}
+
+func parseArgs() (command, repo string) {
+	inextra := 0
+	var extrakey string
+
+	for i, arg := range os.Args {
+		if i == 0 {
+			// This is the program name, we don't need that
+			continue
+		}
+		if inextra == 1 {
+			// We had the --extra, this is the key
+			extrakey = arg
+			inextra = 2
+			_, ok := configuration.Extras[extrakey]
+			if ok {
+				exitWithError("Extra value " + extrakey + " overriding attempted")
+			}
+		} else if inextra == 2 {
+			// We had the --extra and key, this is the value
+			configuration.Extras[extrakey] = arg
+			extrakey = ""
+			inextra = 0
+		} else {
+			if arg == "--extra" {
+				inextra = 1
+			} else if command == "" {
+				command = arg
+			} else if repo == "" {
+				if arg[0] == '\'' && arg[len(arg)-1] == '\'' {
+					arg = arg[1 : len(arg)-1]
+				}
+				repo = arg
+			} else {
+				exitWithError("Too many arguments")
+			}
+		}
+	}
+	return
 }
 
 func ExecuteBridge() {
@@ -141,16 +187,12 @@ func ExecuteBridge() {
 		os.Exit(1)
 	}
 
-	var command string
-	var repo string
+	command, repo := parseArgs()
 
-	if len(os.Args) == 3 {
-		command = os.Args[1]
-		repo = os.Args[2]
-	} else if len(os.Args) == 2 {
+	if repo == "" && command != "" {
 		// This is used in a call by git remote-ext, probably in a test situation
+		repo = command
 		command = os.Getenv("GIT_EXT_SERVICE_NOPREFIX")
-		repo = os.Args[1]
 	}
 
 	if command == "" || repo == "" {

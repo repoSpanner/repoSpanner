@@ -61,6 +61,9 @@ func getURL(service, reponame string) string {
 
 func bridge(r *http.Request) {
 	r.Header["X-RepoBridge-Version"] = []string{constants.VersionString()}
+	for key, val := range configuration.Extras {
+		r.Header["X-Extra-"+key] = []string{val}
+	}
 
 	resp, err := getClient().Do(r)
 	checkError(
