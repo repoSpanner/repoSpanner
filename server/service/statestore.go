@@ -425,7 +425,7 @@ func (store *stateStore) readCommits() {
 			store.repoinfos[r.GetReponame()] = datastructures.RepoInfo{
 				Public:  r.GetPublic(),
 				Refs:    make(map[string]string),
-				Symrefs: make(map[string]string),
+				Symrefs: map[string]string{"HEAD": "refs/heads/master"},
 				Hooks: datastructures.RepoHookInfo{
 					PreReceive:  string(storage.ZeroID),
 					Update:      string(storage.ZeroID),
@@ -709,20 +709,6 @@ func (store *stateStore) processPush(req *pb.PushRequest) {
 		_, hasref := info.Refs[target]
 		if !hasref {
 			delete(info.Symrefs, symref)
-		}
-	}
-
-	_, hashead := info.Symrefs["HEAD"]
-	if !hashead {
-		// If this was an empty repo, try to get a default HEAD
-		_, hasmaster := info.Refs["refs/heads/master"]
-		if hasmaster {
-			info.Symrefs["HEAD"] = "refs/heads/master"
-		} else {
-			for ref := range info.Refs {
-				info.Symrefs["HEAD"] = ref
-				break
-			}
 		}
 	}
 
