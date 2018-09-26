@@ -198,10 +198,12 @@ func ExecuteBridge() {
 		exitWithError("Invalid call arguments", "len", len(os.Args))
 	}
 
-	if command != "receive-pack" && command != "upload-pack" {
+	if !strings.HasPrefix(command, "git-") {
+		command = "git-" + command
+	}
+	if command != "git-receive-pack" && command != "git-upload-pack" {
 		exitWithError("Invalid call")
 	}
-	command = "git-" + command
 
 	// First, let's see if we need to do anything here.
 	rawgit, reponame, err := isRawGitRepo(repo)
