@@ -343,8 +343,7 @@ func TestDuplicateObjects(t *testing.T) {
 	// object multiple times in a single push
 	// Issue #20
 
-	//runForTestedCloneMethods(t, performMirrorSingleNodeTest)
-	performDuplicateObjectsTest(t, cloneMethodHTTPS)
+	runForTestedCloneMethods(t, performDuplicateObjectsTest)
 }
 
 func performDuplicateObjectsTest(t *testing.T, method cloneMethod) {
