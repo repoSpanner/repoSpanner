@@ -146,6 +146,88 @@ func testStorageDriver(name string, instance StorageDriver, t *testing.T) {
 	if err != nil {
 		t.Fatal(fmt.Sprintf("Error when closing read object: %s", err))
 	}
+
+	// Create a second project
+	p2 := instance.GetProjectStorage("test/project2")
+	p2w := p2.GetPusher("")
+	staged, err = p2w.StageObject(ObjectTypeBlob, 4)
+	if err != nil {
+		t.Fatal(fmt.Sprintf("StageObject returned error: %s", err))
+	}
+	n, err = staged.Write([]byte("foo"))
+	if err != nil {
+		t.Fatal(fmt.Sprintf("Staged write returned error: %s", err))
+	}
+	if n != 3 {
+		t.Fatal(fmt.Sprintf("Staged writed did not write expected number of bytes: %d", n))
+	}
+	_, err = staged.Finalize("5c40945c981bd37a6912f5e2d3b2ceabfec5452a")
+	if err != nil {
+		t.Fatal(fmt.Sprintf("Unexpected error from finalizing: %s", err))
+	}
+	err = staged.Close()
+	if err != nil {
+		t.Fatal(fmt.Sprintf("Unexpected error on close: %s", err))
+	}
+	doneC = p2w.GetPushResultChannel()
+	select {
+	case err := <-doneC:
+		t.Fatal(fmt.Sprintf("Unexpected error on close channel: %s", err))
+	default:
+		// No message is good here
+		break
+	}
+	p2w.Done()
+	select {
+	case err, isopen := <-doneC:
+		if err != nil {
+			t.Fatal(fmt.Sprintf("Unexpected error when we expected close: %s", err))
+		}
+		if !isopen {
+			// Channel closed correctly
+			break
+		}
+	default:
+		t.Fatal("Done channel not closed")
+	}
+
+	objtype, objsize, objr, err = p2.ReadObject("5c40945c981bd37a6912f5e2d3b2ceabfec5452a")
+	if err != nil {
+		t.Fatal(fmt.Sprintf("Error when getting just-written object: %s", err))
+	}
+	if objsize != 4 {
+		t.Fatal(fmt.Sprintf("Incorrect number of bytes returned: %d != 4", objsize))
+	}
+	if objtype != ObjectTypeBlob {
+		t.Fatal(fmt.Sprintf("Incorrect object type returned: %s != ObjectTypeBlob", objtype))
+	}
+	buf = make([]byte, 6)
+	n, err = objr.Read(buf)
+	if err != nil {
+		t.Fatal(fmt.Sprintf("Error reading object: %s", err))
+	}
+	if n != 3 {
+		t.Fatal(fmt.Sprintf("Unexpected number of bytes read: %d", n))
+	}
+	if buf[0] != 'f' || buf[1] != 'o' || buf[2] != 'o' {
+		t.Fatal(fmt.Sprintf("Incorrect object returned: %s", buf))
+	}
+	err = objr.Close()
+	if err != nil {
+		t.Fatal(fmt.Sprintf("Error when closing read object: %s", err))
+	}
+
+	// Make sure that getting the p2 object on p1 is ErrObjectNotFound
+	objtype, objsize, objr, err = p1.ReadObject("5c40945c981bd37a6912f5e2d3b2ceabfec5452a")
+	if err != ErrObjectNotFound {
+		t.Fatal(fmt.Sprintf("p2 object available via p1"))
+	}
+
+	// And p1 via p2
+	objtype, objsize, objr, err = p2.ReadObject("30d74d258442c7c65512eafab474568dd706c430")
+	if err != ErrObjectNotFound {
+		t.Fatal(fmt.Sprintf("p1 object available via p2"))
+	}
 }
 
 func TestTreeStorageDriver(t *testing.T) {
