@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -100,6 +101,12 @@ func writeTestFiles(t *testing.T, wdir string, start, stop int) {
 	if inRange(start, stop, 4) {
 		writeTestFile(t, wdir, "testfile4", body4, false)
 	}
+	if start >= 5 {
+		for i := start; i <= stop; i++ {
+			j := strconv.Itoa(i)
+			writeTestFile(t, wdir, "testfile-auto"+j, "testcontent"+j, false)
+		}
+	}
 
 	runRawCommand(t, "git", wdir, nil, "add", ".")
 }
@@ -133,6 +140,12 @@ func testFiles(t *testing.T, wdir string, start, stop int) {
 	}
 	if inRange(start, stop, 4) {
 		testFile(t, wdir, "testfile4", body4, false)
+	}
+	if start >= 5 {
+		for i := start; i <= stop; i++ {
+			j := strconv.Itoa(i)
+			testFile(t, wdir, "testfile-auto"+j, "testcontent"+j, false)
+		}
 	}
 }
 
@@ -321,6 +334,36 @@ func performCloneEditPushRecloneWithMajorityOfflineTest(t *testing.T, method clo
 	// And retry that push
 	pushout = runRawCommand(t, "git", wdir2, nil, "push")
 	if !strings.Contains(pushout, "  master -> master") {
+		t.Fatal("Something went wrong in pushing")
+	}
+}
+
+func TestDuplicateObjects(t *testing.T) {
+	// This tests to make sure that we don't panic if git sends the same
+	// object multiple times in a single push
+	// Issue #20
+
+	//runForTestedCloneMethods(t, performMirrorSingleNodeTest)
+	performDuplicateObjectsTest(t, cloneMethodHTTPS)
+}
+
+func performDuplicateObjectsTest(t *testing.T, method cloneMethod) {
+	// This test catches the case where the same object is pushed twice.
+	// This happens if multiple branches are pushed at the same time.
+	defer testCleanup(t)
+	nodea := nodeNrType(1)
+	nodeb := nodeNrType(2)
+
+	createNodes(t, nodea, nodeb)
+
+	createRepo(t, nodea, "test1", true)
+
+	wdir1 := clone(t, method, nodea, "test1", "admin", true)
+	getBlobRepo(t, wdir1, "20")
+
+	// Push
+	pushout := runRawCommand(t, "git", wdir1, nil, "push", "origin", "c7")
+	if !strings.Contains(pushout, "* [new branch]      c7 -> c7") {
 		t.Fatal("Something went wrong in pushing")
 	}
 }

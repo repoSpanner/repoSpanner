@@ -18,6 +18,8 @@ import (
 	"repospanner.org/repospanner/server/storage"
 )
 
+var errDupeObject = errors.New("clustered_storage: Duplicated object ignored")
+
 type clusterStorageDriverInstance struct {
 	inner storage.StorageDriver
 	cfg   *Service
@@ -373,8 +375,8 @@ func (d *clusterStorageProjectPushDriverInstance) dbAddObject(objid storage.Obje
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(
-		`INSERT INTO syncstatus (objectid, alerted, neededpeers, outstanding) VALUES ($1, 0, $2, $3)`,
+	res, err := tx.Exec(
+		`INSERT OR IGNORE INTO syncstatus (objectid, alerted, neededpeers, outstanding) VALUES ($1, 0, $2, $3)`,
 		objid,
 		neededpeers,
 		numpeers,
@@ -382,6 +384,22 @@ func (d *clusterStorageProjectPushDriverInstance) dbAddObject(objid storage.Obje
 	if err != nil {
 		tx.Rollback()
 		return err
+	}
+	aff, err := res.RowsAffected()
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	if aff == 0 {
+		// This can happen if a client sends the same object twice in the same push.
+		// We can ignore the second one.
+		d.d.d.cfg.log.WithFields(logrus.Fields{
+			"objid":       objid,
+			"neededpeers": neededpeers,
+			"numpeers":    numpeers,
+		}).Debug("Duplicated object sent and ignored")
+		tx.Rollback()
+		return errDupeObject
 	}
 	d.d.d.cfg.log.WithFields(logrus.Fields{
 		"objid":       objid,
@@ -613,6 +631,10 @@ func (d *clusterStorageProjectPushDriverInstance) startObjectSync(objid storage.
 	if len(d.objectSyncPeers) != 0 {
 		d.outstandingobjects.Add(1)
 		err := d.dbAddObject(objid)
+		if err == errDupeObject {
+			d.outstandingobjects.Done()
+			return
+		}
 		if err != nil {
 			panic(err)
 		}

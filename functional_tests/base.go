@@ -651,3 +651,30 @@ func failIfErr(t *testing.T, err error, doing string) {
 		t.Fatalf("Error while %s: %s", doing, err)
 	}
 }
+
+func getBlobRepo(t *testing.T, workdir, issuenr string) {
+	issuedir, err := filepath.Abs(path.Join("blobs", "issue-"+issuenr))
+	failIfErr(t, err, "getting absolute issuepath")
+	files, err := ioutil.ReadDir(issuedir)
+	failIfErr(t, err, "reading issue folder")
+	for _, file := range files {
+		dest := ""
+
+		if file.Name() == "packed-refs" {
+			dest = path.Join(".git")
+		} else if strings.HasPrefix(file.Name(), "pack-") {
+			dest = path.Join(".git", "objects", "pack")
+		}
+
+		if dest != "" {
+			destdir := path.Join(workdir, dest)
+			err := os.MkdirAll(destdir, 0755)
+			failIfErr(t, err, "creating test folder")
+			err = os.Symlink(
+				path.Join(issuedir, file.Name()),
+				path.Join(destdir, file.Name()),
+			)
+			failIfErr(t, err, "linking file from test folder")
+		}
+	}
+}
