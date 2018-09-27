@@ -24,6 +24,7 @@ type config struct {
 var (
 	username      string
 	configuration config
+	usesideband   bool
 )
 
 func sendPacket(w io.Writer, packet []byte) error {
@@ -31,8 +32,13 @@ func sendPacket(w io.Writer, packet []byte) error {
 	if err != nil {
 		return err
 	}
-	if _, err := w.Write([]byte(len)); err != nil {
+	if _, err := w.Write(len); err != nil {
 		return err
+	}
+	if usesideband {
+		if _, err := w.Write([]byte{byte(0x03)}); err != nil {
+			return err
+		}
 	}
 	if _, err := w.Write(packet); err != nil {
 		return err
@@ -53,6 +59,9 @@ func getPacketLen(packet []byte) ([]byte, error) {
 	}
 	if pktlen > 65520 {
 		return nil, errors.New("Packet too big")
+	}
+	if usesideband {
+		pktlen++
 	}
 	len := fmt.Sprintf("%04x", pktlen)
 	return []byte(len), nil
@@ -220,6 +229,8 @@ func ExecuteBridge() {
 		if isdone {
 			os.Exit(0)
 		}
+		// From here on out, we need to send a sideband
+		usesideband = true
 
 		performService(r, command, reponame)
 	}
