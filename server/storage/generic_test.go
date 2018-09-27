@@ -2,6 +2,7 @@ package storage
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -133,7 +134,7 @@ func testStorageDriver(name string, instance StorageDriver, t *testing.T) {
 	}
 	buf := make([]byte, 6)
 	n, err = objr.Read(buf)
-	if err != nil {
+	if err != nil && err != io.EOF {
 		t.Fatal(fmt.Sprintf("Error reading object: %s", err))
 	}
 	if n != 4 {
@@ -203,7 +204,7 @@ func testStorageDriver(name string, instance StorageDriver, t *testing.T) {
 	}
 	buf = make([]byte, 6)
 	n, err = objr.Read(buf)
-	if err != nil {
+	if err != nil && err != io.EOF {
 		t.Fatal(fmt.Sprintf("Error reading object: %s", err))
 	}
 	if n != 3 {
@@ -230,7 +231,28 @@ func testStorageDriver(name string, instance StorageDriver, t *testing.T) {
 	}
 }
 
-func TestTreeStorageDriver(t *testing.T) {
+func TestGzipCompressedTreeStorageDriver(t *testing.T) {
+	dir, err := ioutil.TempDir("", "repospanner_test_")
+	if err != nil {
+		panic(err)
+	}
+	//defer os.RemoveAll(dir)
+	fmt.Println("Dir: ", dir)
+	t.Run("tree", func(t *testing.T) {
+		treeconf := map[string]string{}
+		treeconf["type"] = "tree"
+		treeconf["directory"] = dir
+		treeconf["clustered"] = "false"
+		treeconf["compressmethod"] = "gzip"
+		instance, err := InitializeStorageDriver(treeconf)
+		if err != nil {
+			panic(err)
+		}
+		testStorageDriver("tree", instance, t)
+	})
+}
+
+func TestZlibCompressedTreeStorageDriver(t *testing.T) {
 	dir, err := ioutil.TempDir("", "repospanner_test_")
 	if err != nil {
 		panic(err)
@@ -241,6 +263,27 @@ func TestTreeStorageDriver(t *testing.T) {
 		treeconf["type"] = "tree"
 		treeconf["directory"] = dir
 		treeconf["clustered"] = "false"
+		treeconf["compressmethod"] = "gzip"
+		instance, err := InitializeStorageDriver(treeconf)
+		if err != nil {
+			panic(err)
+		}
+		testStorageDriver("tree", instance, t)
+	})
+}
+
+func TestUncompressedTreeStorageDriver(t *testing.T) {
+	dir, err := ioutil.TempDir("", "repospanner_test_")
+	if err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(dir)
+	t.Run("tree", func(t *testing.T) {
+		treeconf := map[string]string{}
+		treeconf["type"] = "tree"
+		treeconf["directory"] = dir
+		treeconf["clustered"] = "false"
+		treeconf["compressmethod"] = "none"
 		instance, err := InitializeStorageDriver(treeconf)
 		if err != nil {
 			panic(err)

@@ -1,6 +1,8 @@
 package storage
 
 import (
+	"compress/gzip"
+	"compress/zlib"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -10,8 +12,67 @@ import (
 	"github.com/pkg/errors"
 )
 
+type compressMethod int
+
+const (
+	compressMethodNone compressMethod = 0
+	compressMethodGzip                = 1
+	compressMethodZlib                = 2
+)
+
 type treeStorageDriverInstance struct {
-	dirname string
+	dirname        string
+	compressmethod compressMethod
+}
+
+func newTreeStoreDriver(dir, comp string) (*treeStorageDriverInstance, error) {
+	inst := &treeStorageDriverInstance{dirname: dir}
+	if comp == "none" {
+		inst.compressmethod = compressMethodNone
+	} else if comp == "gzip" {
+		inst.compressmethod = compressMethodGzip
+	} else if comp == "zlib" {
+		inst.compressmethod = compressMethodZlib
+	} else {
+		return nil, errors.Errorf("Invalid compressiong method %s", comp)
+	}
+	return inst, nil
+}
+
+type nopWriter struct{ w io.Writer }
+
+func (w *nopWriter) Write(buf []byte) (int, error) {
+	return w.w.Write(buf)
+}
+func (w *nopWriter) Close() error {
+	return nil
+}
+
+func (d *treeStorageDriverInstance) compressExtension() string {
+	if d.compressmethod == compressMethodGzip {
+		return ".gz"
+	} else if d.compressmethod == compressMethodZlib {
+		return ".xz"
+	}
+	return ""
+}
+
+func (d *treeStorageDriverInstance) compressReader(r io.Reader) (io.ReadCloser, error) {
+	if d.compressmethod == compressMethodGzip {
+		return gzip.NewReader(r)
+	} else if d.compressmethod == compressMethodZlib {
+		return zlib.NewReader(r)
+	}
+	return ioutil.NopCloser(r), nil
+}
+
+func (d *treeStorageDriverInstance) compressWriter(w io.Writer) io.WriteCloser {
+	if d.compressmethod == compressMethodGzip {
+		return gzip.NewWriter(w)
+	} else if d.compressmethod == compressMethodZlib {
+		return zlib.NewWriter(w)
+	}
+	return &nopWriter{w: w}
 }
 
 func (d *treeStorageDriverInstance) GetProjectStorage(project string) ProjectStorageDriver {
@@ -38,7 +99,24 @@ type treeStorageProjectDriverStagedObject struct {
 func (t *treeStorageProjectDriverInstance) getObjPath(objectid ObjectID) string {
 	sobjectid := string(objectid)
 	objdir := path.Join(t.t.dirname, t.p, sobjectid[:2])
-	return path.Join(objdir, sobjectid[2:])
+	return path.Join(objdir, sobjectid[2:]) + t.t.compressExtension()
+}
+
+type innerReadCloser struct {
+	file *os.File
+	read io.ReadCloser
+}
+
+func (i *innerReadCloser) Read(p []byte) (int, error) {
+	return i.read.Read(p)
+}
+
+func (i *innerReadCloser) Close() error {
+	err := i.read.Close()
+	if err != nil {
+		return err
+	}
+	return i.file.Close()
 }
 
 func (t *treeStorageProjectDriverInstance) ReadObject(objectid ObjectID) (ObjectType, uint, io.ReadCloser, error) {
@@ -50,12 +128,18 @@ func (t *treeStorageProjectDriverInstance) ReadObject(objectid ObjectID) (Object
 		return ObjectTypeBad, 0, nil, err
 	}
 
+	r, err := t.t.compressReader(f)
+	if err != nil {
+		return ObjectTypeBad, 0, nil, err
+	}
+	read := &innerReadCloser{file: f, read: r}
+
 	var hdr string
 	var len uint
-	fmt.Fscanf(f, "%s %d", &hdr, &len)
+	fmt.Fscanf(read, "%s %d", &hdr, &len)
 	objtype := ObjectTypeFromHdrName(hdr)
 
-	return objtype, len, f, nil
+	return objtype, len, read, nil
 }
 
 func (t *treeStorageProjectDriverInstance) GetPusher(_ string) ProjectStoragePushDriver {
@@ -88,11 +172,13 @@ func (t *treeStorageProjectPushDriverInstance) StageObject(objtype ObjectType, o
 		return nil, err
 	}
 
-	fmt.Fprintf(f, "%s %d\x00", objtype.HdrName(), objsize)
+	w := t.t.t.compressWriter(f)
+	fmt.Fprintf(w, "%s %d\x00", objtype.HdrName(), objsize)
 
-	return &treeStorageProjectDriverStagedObject{p: t.t,
+	return &treeStorageProjectDriverStagedObject{
+		p:         t.t,
 		f:         f,
-		w:         createOidWriter(objtype, objsize, f),
+		w:         createOidWriter(objtype, objsize, w),
 		finalized: false,
 	}, nil
 }
@@ -102,7 +188,14 @@ func (t *treeStorageProjectDriverStagedObject) Write(buf []byte) (int, error) {
 }
 
 func (t *treeStorageProjectDriverStagedObject) Finalize(objid ObjectID) (ObjectID, error) {
-	t.f.Close()
+	err := t.w.Close()
+	if err != nil {
+		return ZeroID, err
+	}
+	err = t.f.Close()
+	if err != nil {
+		return ZeroID, err
+	}
 
 	calced := t.w.getObjectID()
 

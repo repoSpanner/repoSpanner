@@ -115,7 +115,11 @@ func InitializeStorageDriver(config map[string]string) (StorageDriver, error) {
 		if !ok {
 			return nil, errors.New("No directory provided")
 		}
-		return &treeStorageDriverInstance{dirname: dirname}, nil
+		compressmethod, ok := config["compressmethod"]
+		if !ok {
+			compressmethod = "none"
+		}
+		return newTreeStoreDriver(dirname, compressmethod)
 	default:
 		return nil, errors.New("Unknown storage driver " + storagetype)
 	}
@@ -123,6 +127,7 @@ func InitializeStorageDriver(config map[string]string) (StorageDriver, error) {
 
 type oidWriter struct {
 	hasher hash.Hash
+	inner  io.WriteCloser
 	writer io.Writer
 }
 
@@ -130,16 +135,21 @@ func (w *oidWriter) Write(buf []byte) (int, error) {
 	return w.writer.Write(buf)
 }
 
+func (w *oidWriter) Close() error {
+	return w.inner.Close()
+}
+
 func (w *oidWriter) getObjectID() ObjectID {
 	return ObjectIDFromRaw(w.hasher.Sum(nil))
 }
 
-func createOidWriter(objtype ObjectType, objsize uint, inner io.Writer) *oidWriter {
+func createOidWriter(objtype ObjectType, objsize uint, inner io.WriteCloser) *oidWriter {
 	hasher := sha1.New()
 	fmt.Fprintf(hasher, "%s %d\x00", objtype.HdrName(), objsize)
 
 	w := &oidWriter{
 		hasher: hasher,
+		inner:  inner,
 		writer: io.MultiWriter(hasher, inner),
 	}
 
