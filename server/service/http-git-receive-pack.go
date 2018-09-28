@@ -49,7 +49,7 @@ func (cfg *Service) serveGitReceivePack(w http.ResponseWriter, r *http.Request, 
 	errsender := sideBandSender{
 		w:        rw,
 		sbstatus: sbstatus,
-		sb:       sideBandFatal,
+		sb:       sideBandProgress,
 	}
 
 	cfg.maybeSayHello(rw, sbstatus)
