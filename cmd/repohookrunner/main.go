@@ -193,7 +193,7 @@ func runHook(request datastructures.HookRunRequest, workdir string, branch strin
 		)
 		cmd.Dir = path.Join(workdir, "hookrun", "clone")
 		cmd.Env = []string{
-			"GIT_DIR=" + cmd.Path,
+			"GIT_DIR=" + cmd.Dir,
 		}
 
 		for key, val := range request.ExtraEnv {
