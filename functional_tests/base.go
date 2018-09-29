@@ -538,9 +538,14 @@ func createTestCA(t *testing.T) {
 	builtCa = true
 }
 
-func createTestConfig(t *testing.T, node string, nodenr nodeNrType) {
+func createTestConfig(t *testing.T, node string, nodenr nodeNrType, extras ...string) {
 	if testDir == "" {
 		createTestDirectory(t)
+	}
+	if _, err := os.Stat(path.Join(testDir, node+"-config.yml")); !os.IsNotExist(err) {
+		// Don't recreate if another test specifically created this config
+		t.Log("Config for", node, "left in place")
+		return
 	}
 
 	// Create base config by modifying the example config
@@ -602,6 +607,20 @@ func createTestConfig(t *testing.T, node string, nodenr nodeNrType) {
 			examplecfg,
 			"enabled: true",
 			"enabled: false",
+			-1,
+		)
+	}
+
+	var key string
+	for _, arg := range extras {
+		if key == "" {
+			key = arg
+			continue
+		}
+		examplecfg = strings.Replace(
+			examplecfg,
+			key,
+			arg,
 			-1,
 		)
 	}
