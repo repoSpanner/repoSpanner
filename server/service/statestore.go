@@ -12,6 +12,7 @@ import (
 
 	"github.com/coreos/etcd/raft/raftpb"
 	"github.com/golang/protobuf/proto"
+	"github.com/spf13/viper"
 
 	"github.com/coreos/etcd/snap"
 	"github.com/pkg/errors"
@@ -420,12 +421,20 @@ func (store *stateStore) readCommits() {
 		case pb.ChangeRequest_NEWREPO:
 			r := req.GetNewreporeq()
 
+			// This is more of a joke, and not documented since nobody
+			// in their sane mind should probably use this.
+			defhead := viper.GetString("silly.defaulthead")
+			if defhead == "" {
+				// We still want to default to a sane value
+				defhead = "master"
+			}
+
 			store.cfg.log.Debug("New repo request received")
 			store.mux.Lock()
 			store.repoinfos[r.GetReponame()] = datastructures.RepoInfo{
 				Public:  r.GetPublic(),
 				Refs:    make(map[string]string),
-				Symrefs: map[string]string{"HEAD": "refs/heads/master"},
+				Symrefs: map[string]string{"HEAD": "refs/heads/" + defhead},
 				Hooks: datastructures.RepoHookInfo{
 					PreReceive:  string(storage.ZeroID),
 					Update:      string(storage.ZeroID),

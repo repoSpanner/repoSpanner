@@ -366,3 +366,49 @@ func performDuplicateObjectsTest(t *testing.T, method cloneMethod) {
 		t.Fatal("Something went wrong in pushing")
 	}
 }
+
+func TestCloneEditPushRecloneSingleNodeEmojiBranch(t *testing.T) {
+	runForTestedCloneMethods(t, performCloneEditPushRecloneSingleNodeEmojiBranchTest)
+}
+
+func performCloneEditPushRecloneSingleNodeEmojiBranchTest(t *testing.T, method cloneMethod) {
+	defer testCleanup(t)
+	nodea := nodeNrType(1)
+
+	createTestConfig(t, nodea.Name(), nodea, "hooks:", "silly:\n  defaulthead: 😃\nhooks:")
+	spawnNode(t, nodea)
+
+	createRepo(t, nodea, "test1", true)
+
+	wdir1 := clone(t, method, nodea, "test1", "admin", true)
+	runRawCommand(t, "git", wdir1, nil, "checkout", "--orphan", "😃")
+	writeTestFiles(t, wdir1, 0, 3)
+	runRawCommand(t, "git", wdir1, nil, "commit", "-sm", "Writing our tests")
+
+	// Push
+	pushout := runRawCommand(t, "git", wdir1, nil, "push", "--set-upstream", "origin", "😃")
+	if !strings.Contains(pushout, "* [new branch]      😃 -> 😃") {
+		t.Fatal("Something went wrong in pushing")
+	}
+
+	// And reclone
+	wdir2 := clone(t, method, nodea, "test1", "admin", true)
+	testFiles(t, wdir2, 0, 3)
+
+	// Add a new file
+	writeTestFiles(t, wdir2, 4, 4)
+	runRawCommand(t, "git", wdir2, nil, "commit", "-sm", "Testing the push again")
+
+	// Push again
+	pushout = runRawCommand(t, "git", wdir2, nil, "push")
+	if !strings.Contains(pushout, "  😃 -> 😃") {
+		t.Fatal("Something went wrong in pushing")
+	}
+
+	// And clone once more
+	wdir3 := clone(t, method, nodea, "test1", "", true)
+	testFiles(t, wdir3, 0, 4)
+
+	// And make sure we can bring wdir1 up to date
+	runRawCommand(t, "git", wdir1, nil, "pull")
+}
