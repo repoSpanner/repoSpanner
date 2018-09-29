@@ -31,6 +31,14 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is /etc/repospanner/config.yaml)")
 }
 
+func warnForSillyConfig() {
+	sillies := viper.GetStringMap("silly")
+	if len(sillies) > 0 {
+		log.Println("WARNING: Silly config options are set")
+		log.Println("These are not supported, and should not be used in a production environment")
+	}
+}
+
 func initConfig() {
 	viper.SetConfigName("config")
 	if cfgFile != "" {
@@ -45,4 +53,6 @@ func initConfig() {
 	if err := viper.ReadInConfig(); err != nil {
 		log.Println("Unable to read config file:", err)
 	}
+
+	warnForSillyConfig()
 }
