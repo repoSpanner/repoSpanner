@@ -95,6 +95,7 @@ func main() {
 	cmd := exec.Command(
 		"git",
 		"clone",
+		"--bare",
 		"--config", "http.sslcainfo="+path.Join(workdir, "keys", "ca.crt"),
 		"--config", "http.sslcert="+path.Join(workdir, "keys", "client.crt"),
 		"--config", "http.sslkey="+path.Join(workdir, "keys", "client.key"),
