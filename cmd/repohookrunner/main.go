@@ -42,10 +42,10 @@ func failNow(msg string) {
 
 func main() {
 	defer func() {
-		/*if r := recover(); r != nil {
+		if r := recover(); r != nil {
 			fmt.Fprintln(os.Stderr, "Error occured")
 			os.Exit(1)
-		}*/
+		}
 	}()
 
 	if !constants.VersionBuiltIn() {
