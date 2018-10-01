@@ -92,4 +92,11 @@ func TestRepoManagement(t *testing.T) {
 	verifyReposExist(t, nodea, r1, r2, r3)
 	verifyReposExist(t, nodeb, r1, r2, r3)
 	verifyReposExist(t, nodec, r1, r2, r3)
+
+	// Delete test3
+	runCommand(t, nodec.Name(),
+		"admin", "repo", "delete", "test3")
+	verifyReposExist(t, nodea, r1, r2)
+	verifyReposExist(t, nodeb, r1, r2)
+	verifyReposExist(t, nodec, r1, r2)
 }
