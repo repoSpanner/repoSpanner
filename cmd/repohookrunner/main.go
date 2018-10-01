@@ -24,8 +24,13 @@ import (
 	"repospanner.org/repospanner/server/constants"
 )
 
+var debug bool
+
 func failIfError(err error, msg string) {
 	if err != nil {
+		if debug {
+			fmt.Println("Error: ", err)
+		}
 		failNow(msg)
 	}
 }
@@ -58,6 +63,7 @@ func main() {
 	var request datastructures.HookRunRequest
 	err = json.Unmarshal(breq, &request)
 	failIfError(err, "Error parsing request")
+	debug = request.Debug
 
 	// Before doing anything else, lower privileges
 	if request.User != 0 {

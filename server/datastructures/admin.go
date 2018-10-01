@@ -65,6 +65,7 @@ type NodeStatus struct {
 }
 
 type HookRunRequest struct {
+	Debug        bool
 	RPCURL       string
 	ProjectName  string
 	PushUUID     string

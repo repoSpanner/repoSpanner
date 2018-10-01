@@ -61,6 +61,7 @@ func (cfg *Service) runHook(hook hookType, errout, infoout io.Writer, projectnam
 	}
 
 	hookreq := datastructures.HookRunRequest{
+		Debug:        viper.GetBool("hooks.debug"),
 		RPCURL:       cfg.findRPCURL(),
 		PushUUID:     request.UUID(),
 		BwrapConfig:  viper.GetStringMap("hooks.bubblewrap"),

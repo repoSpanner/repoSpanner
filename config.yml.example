@@ -28,6 +28,7 @@ certificates:
       cert: /etc/pki/repospanner/public.crt
       key:  /etc/pki/repospanner/public.key
 hooks:
+  debug: false
   bubblewrap:
     enabled: true
     unshare:
