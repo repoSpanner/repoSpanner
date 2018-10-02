@@ -202,7 +202,7 @@ func (cfg *Service) serveGitReceivePack(w http.ResponseWriter, r *http.Request, 
 				}
 
 				for {
-					if deltasresolved%1000 == 0 {
+					if deltasresolved%100 == 0 {
 						sendSideBandPacket(
 							rw,
 							sbstatus,
