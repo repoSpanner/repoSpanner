@@ -322,7 +322,7 @@ func readPacket(r io.Reader) ([]byte, error) {
 	}
 	len = len - 4
 	buff := make([]byte, len)
-	read, err := r.Read(buff)
+	read, err := io.ReadFull(r, buff)
 	if int64(read) != len {
 		return nil, fmt.Errorf("Expected to read %d, read %d", len, read)
 	}
