@@ -121,6 +121,17 @@ func (cfg *Service) serveAdminEditRepo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Verify that hook IDs make sense
+	for req, val := range editreporequest.UpdateRequest {
+		if strings.HasPrefix(string(req), "hook-") && !isValidRef(val) {
+			cfg.respondJSONResponse(w, datastructures.CommandResponse{
+				Success: false,
+				Error:   string(req) + " has invalid hook ID",
+			})
+			return
+		}
+	}
+
 	err = cfg.statestore.editRepo(
 		editreporequest.Reponame,
 		remarshal,
