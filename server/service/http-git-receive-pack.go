@@ -319,6 +319,7 @@ func (cfg *Service) serveGitReceivePack(w http.ResponseWriter, r *http.Request, 
 	cfg.debugPacket(rw, sbstatus, "Objects synced")
 
 	cfg.statestore.AddFakeRefs(reponame, toupdate)
+	defer cfg.statestore.RemoveFakeRefs(reponame, toupdate)
 
 	cfg.debugPacket(rw, sbstatus, "Running pre-receive hook...")
 	err = cfg.runHook(

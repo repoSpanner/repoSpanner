@@ -185,6 +185,24 @@ func (store *stateStore) AddFakeRefs(repo string, req *pb.PushRequest) {
 	}
 }
 
+func (store *stateStore) RemoveFakeRefs(repo string, req *pb.PushRequest) {
+	store.mux.Lock()
+	defer store.mux.Unlock()
+
+	_, inthere := store.fakerefs[repo]
+	if !inthere {
+		// We clearly didn't run AddFakeRefs yet.... weird, but ok
+		return
+	}
+
+	for _, creq := range req.GetRequests() {
+		if creq.ToObject() != storage.ZeroID {
+			refname := fmt.Sprintf("refs/heads/fake/%s/%s", req.UUID(), creq.GetRef())
+			delete(store.fakerefs[repo], refname)
+		}
+	}
+}
+
 func (store *stateStore) GetRepos() map[string]datastructures.RepoInfo {
 	store.mux.Lock()
 	defer store.mux.Unlock()
