@@ -18,6 +18,7 @@ func (cfg *Service) serveGitUploadPack(w http.ResponseWriter, r *http.Request, r
 
 	capabs, wants, err := readUploadPackRequest(bodyreader, reqlogger)
 	if err != nil {
+		reqlogger.WithField("err", err).Debug("Invalid request received")
 		w.WriteHeader(400)
 		w.Write([]byte("Error processing your request"))
 		return
