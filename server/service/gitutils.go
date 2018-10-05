@@ -298,7 +298,7 @@ func sendFlushPacket(w io.Writer) error {
 
 func readPacket(r io.Reader) ([]byte, error) {
 	rawlen := make([]byte, 4)
-	n, err := r.Read(rawlen)
+	n, err := io.ReadFull(r, rawlen)
 	if err != nil {
 		return nil, err
 	}
@@ -311,7 +311,7 @@ func readPacket(r io.Reader) ([]byte, error) {
 	}
 
 	if len >= 65516 {
-		return nil, fmt.Errorf("Too large packet receive, len: %d", len)
+		return nil, fmt.Errorf("Too large packet received, len: %d", len)
 	}
 	if len == 0 {
 		// This was a "flush" packet
