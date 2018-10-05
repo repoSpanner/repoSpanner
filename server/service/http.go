@@ -71,19 +71,20 @@ func findProjectAndOp(parts []string) (string, string) {
 	return reponame, command
 }
 
-func resolveCompression(r *http.Request) {
+func resolveCompression(r *http.Request, reqlogger *logrus.Entry) *logrus.Entry {
 	// If the request indicated it's gzip-compressd, set r.Body to a
 	// gzip.Reader
 	encoding := r.Header.Get("Content-Encoding")
+	reqlogger = reqlogger.WithField("encoding", encoding)
 	if encoding == "" {
-		return
+		return reqlogger
 	} else if encoding == "gzip" {
 		rdr, err := gzip.NewReader(r.Body)
 		if err != nil {
 			panic(err)
 		}
 		r.Body = rdr
-		return
+		return reqlogger
 	}
 	panic(fmt.Sprintf("Invalid content type: '%s'", encoding))
 }
@@ -104,7 +105,7 @@ func (cfg *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("TLS Required"))
 		return
 	}
-	resolveCompression(r)
+	reqlogger = resolveCompression(r, reqlogger)
 	pathparts := strings.Split(path.Clean(r.URL.Path), "/")[1:]
 
 	if len(pathparts) == 1 && pathparts[0] == "" {
