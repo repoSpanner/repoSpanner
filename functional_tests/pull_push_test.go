@@ -412,3 +412,36 @@ func performCloneEditPushRecloneSingleNodeEmojiBranchTest(t *testing.T, method c
 	// And make sure we can bring wdir1 up to date
 	runRawCommand(t, "git", wdir1, nil, "pull")
 }
+
+func TestCompressedContent(t *testing.T) {
+	runForTestedCloneMethods(t, performCompressedContentTest)
+}
+
+func performCompressedContentTest(t *testing.T, method cloneMethod) {
+	defer testCleanup(t)
+	nodea := nodeNrType(1)
+
+	createNodes(t, nodea)
+
+	createRepo(t, nodea, "test1", true)
+
+	wdir1 := clone(t, method, nodea, "test1", "admin", true)
+	writeTestFiles(t, wdir1, 0, 3)
+	runRawCommand(t, "git", wdir1, nil, "commit", "-sm", "Writing our tests")
+
+	// Create 100 branches
+	for i := 0; i < 5000; i++ {
+		branch := "test-" + strconv.Itoa(i)
+		runRawCommand(t, "git", wdir1, nil, "branch", branch)
+	}
+
+	// Push
+	pushout := runRawCommand(t, "git", wdir1, nil, "push", "--all")
+	if !strings.Contains(pushout, "* [new branch]      master -> master") {
+		t.Fatal("Something went wrong in pushing")
+	}
+
+	// And reclone
+	wdir2 := clone(t, method, nodea, "test1", "admin", true)
+	testFiles(t, wdir2, 0, 3)
+}

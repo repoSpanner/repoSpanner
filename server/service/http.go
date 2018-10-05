@@ -1,6 +1,7 @@
 package service
 
 import (
+	"compress/gzip"
 	"compress/zlib"
 	"fmt"
 	"io"
@@ -70,6 +71,23 @@ func findProjectAndOp(parts []string) (string, string) {
 	return reponame, command
 }
 
+func resolveCompression(r *http.Request) {
+	// If the request indicated it's gzip-compressd, set r.Body to a
+	// gzip.Reader
+	encoding := r.Header.Get("Content-Encoding")
+	if encoding == "" {
+		return
+	} else if encoding == "gzip" {
+		rdr, err := gzip.NewReader(r.Body)
+		if err != nil {
+			panic(err)
+		}
+		r.Body = rdr
+		return
+	}
+	panic(fmt.Sprintf("Invalid content type: '%s'", encoding))
+}
+
 func (cfg *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	reqlogger, perminfo := cfg.prereq(w, r, "gitservice")
 
@@ -86,6 +104,7 @@ func (cfg *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("TLS Required"))
 		return
 	}
+	resolveCompression(r)
 	pathparts := strings.Split(path.Clean(r.URL.Path), "/")[1:]
 
 	if len(pathparts) == 1 && pathparts[0] == "" {
