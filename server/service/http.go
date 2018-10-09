@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"repospanner.org/repospanner/server/storage"
+	"repospanner.org/repospanner/server/utils"
 
 	"github.com/sirupsen/logrus"
 	"repospanner.org/repospanner/server/constants"
@@ -84,7 +85,7 @@ func resolveCompression(r *http.Request, reqlogger *logrus.Entry) *logrus.Entry 
 		if err != nil {
 			panic(err)
 		}
-		r.Body = rdr
+		r.Body = utils.NewInnerReadCloser(rdr, r.Body, true)
 		return reqlogger
 	}
 	panic(fmt.Sprintf("Invalid content type: '%s'", encoding))

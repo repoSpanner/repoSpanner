@@ -10,6 +10,8 @@ import (
 	"path"
 
 	"github.com/pkg/errors"
+
+	"repospanner.org/repospanner/server/utils"
 )
 
 type compressMethod int
@@ -102,23 +104,6 @@ func (t *treeStorageProjectDriverInstance) getObjPath(objectid ObjectID) string 
 	return path.Join(objdir, sobjectid[2:]) + t.t.compressExtension()
 }
 
-type innerReadCloser struct {
-	file *os.File
-	read io.ReadCloser
-}
-
-func (i *innerReadCloser) Read(p []byte) (int, error) {
-	return i.read.Read(p)
-}
-
-func (i *innerReadCloser) Close() error {
-	err := i.read.Close()
-	if err != nil {
-		return err
-	}
-	return i.file.Close()
-}
-
 func (t *treeStorageProjectDriverInstance) ReadObject(objectid ObjectID) (ObjectType, uint, io.ReadCloser, error) {
 	f, err := os.Open(t.getObjPath(objectid))
 	if err != nil {
@@ -132,7 +117,7 @@ func (t *treeStorageProjectDriverInstance) ReadObject(objectid ObjectID) (Object
 	if err != nil {
 		return ObjectTypeBad, 0, nil, err
 	}
-	read := &innerReadCloser{file: f, read: r}
+	read := utils.NewInnerReadCloser(r, f, true)
 
 	var hdr string
 	var len uint
