@@ -45,6 +45,7 @@ func (cfg *Service) prereq(w http.ResponseWriter, r *http.Request, server string
 			"useragent", hdr[0],
 		)
 	}
+	reqlogger = resolveCompression(r, reqlogger)
 
 	var perminfo permissionInfo
 	if r.TLS != nil {
@@ -105,7 +106,6 @@ func (cfg *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("TLS Required"))
 		return
 	}
-	reqlogger = resolveCompression(r, reqlogger)
 	pathparts := strings.Split(path.Clean(r.URL.Path), "/")[1:]
 
 	if len(pathparts) == 1 && pathparts[0] == "" {
