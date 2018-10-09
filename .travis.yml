@@ -11,7 +11,6 @@ install:
 before_script:
 - echo "127.0.0.1   node1.regiona.repospanner.local node2.regiona.repospanner.local node3.regiona.repospanner.local" | sudo tee -a /etc/hosts
 script:
-- git config --global protocol.ext.allow always
 - ./build.sh
 - go vet ./...
 - travis_retry go test ./...

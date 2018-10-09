@@ -148,6 +148,11 @@ func _runRawCommand(t *testing.T, binname, pwd string, envupdates []string, args
 		"USER=admin",
 		"REPOBRIDGE_CONFIG="+pwd+".json",
 	)
+	prefix := []string{}
+	if binname == "git" {
+		prefix = []string{"-c", "protocol.ext.allow=always"}
+	}
+	args = append(prefix, args...)
 	cmd := exec.Command(
 		binname,
 		args...,
