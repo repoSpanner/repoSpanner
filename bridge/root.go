@@ -123,15 +123,28 @@ func isRawGitRepo(path string) (rawgit bool, rsname string, err error) {
 	return
 }
 
+func loadConfigFromEnv() {
+	configuration.BaseURL = os.Getenv("REPOBRIDGE_BASEURL")
+	configuration.Ca = os.Getenv("REPOBRIDGE_CA")
+	configuration.Certs = make(map[string]map[string]string)
+	configuration.Certs["_default_"] = make(map[string]string)
+	configuration.Certs["_default_"]["cert"] = os.Getenv("REPOBRIDGE_CERT")
+	configuration.Certs["_default_"]["key"] = os.Getenv("REPOBRIDGE_KEY")
+}
+
 func loadConfig() {
 	cfgFile := os.Getenv("REPOBRIDGE_CONFIG")
-	if cfgFile == "" {
-		cfgFile = "/etc/repospanner/bridge_config.json"
+	if cfgFile == ":environment:" {
+		loadConfigFromEnv()
+	} else {
+		if cfgFile == "" {
+			cfgFile = "/etc/repospanner/bridge_config.json"
+		}
+		cts, err := ioutil.ReadFile(cfgFile)
+		checkError(err, "Error reading configuration")
+		err = json.Unmarshal(cts, &configuration)
+		checkError(err, "Error parsing configuration")
 	}
-	cts, err := ioutil.ReadFile(cfgFile)
-	checkError(err, "Error reading configuration")
-	err = json.Unmarshal(cts, &configuration)
-	checkError(err, "Error parsing configuration")
 
 	if configuration.Extras == nil {
 		// If nothing was configured, start with an empty map
