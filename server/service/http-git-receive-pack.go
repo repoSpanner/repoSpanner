@@ -12,7 +12,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
-	"repospanner.org/repospanner/server/storage"
 )
 
 func (cfg *Service) serveGitReceivePack(w http.ResponseWriter, r *http.Request, reqlogger *logrus.Entry, reponame string) {
@@ -159,116 +158,12 @@ func (cfg *Service) serveGitReceivePack(w http.ResponseWriter, r *http.Request, 
 		rw.isfullyread = true
 
 		// Resolve deltas
-		reqlogger.Debugf("Resolving %d deltas", deltaqueuesize)
-		var deltasresolved int
-		totaldeltas := deltaqueuesize
-
-		for {
-			if deltaqueuesize == 0 {
-				break
-			}
-
-			var newdeltaqueuesize int
-			newdeltasqueue, err := ioutil.TempFile("", "repospanner_deltaqueue_ng_")
-			if err != nil {
-				reqlogger.WithError(err).Info("Unable to create new deltaqueue")
-				return
-			}
-			defer newdeltasqueue.Close()
-			defer os.Remove(newdeltasqueue.Name())
-
-			select {
-			case syncerr := <-pushresultc:
-				reqlogger.WithError(syncerr).Info("Error syncing object out to enough nodes")
-				sendSideBandPacket(w, sbstatus, sideBandProgress, []byte("ERR Object sync failed\n"))
-				sendUnpackFail(w, hasStatus, sbstatus, toupdate)
-				return
-
-			default:
-				if rw.IsClosed() {
-					reqlogger.Debug("Connection closed")
-					return
-				}
-
-				reqlogger.Debugf("Next deneration of delta solving: %d", deltaqueuesize)
-				madeProgress := false
-
-				n, err := deltasqueue.Seek(0, 0)
-				if err != nil {
-					// Seeking failed? Weird...
-					panic(err)
-				}
-				if n != 0 {
-					panic("Seek did not go to start of file?")
-				}
-
-				for {
-					if deltasresolved%100 == 0 {
-						sendSideBandPacket(
-							rw,
-							sbstatus,
-							sideBandProgress,
-							[]byte(fmt.Sprintf(
-								"Resolving deltas (%d/%d)...\n",
-								deltasresolved,
-								totaldeltas,
-							)),
-						)
-					}
-
-					var deltaobj string
-					var baseobj string
-
-					_, err := fmt.Fscanf(deltasqueue, "%s %s\n", &deltaobj, &baseobj)
-					if err == io.EOF {
-						break
-					}
-					if err != nil {
-						reqlogger.WithError(err).Info("Error resolving delta")
-						sendSideBandPacket(w, sbstatus, sideBandProgress, []byte("ERR Delta resolving failed\n"))
-						sendUnpackFail(w, hasStatus, sbstatus, toupdate)
-						return
-					}
-					deltaqueuesize--
-					toresolve := resolveInfo{
-						deltaobj: storage.ObjectID(deltaobj),
-						baseobj:  storage.ObjectID(baseobj),
-					}
-
-					_, _, err = resolveDelta(projectstore, pusher, toresolve)
-					if err == nil {
-						// We managed to fully resolve this delta
-						deltasresolved++
-						madeProgress = true
-					} else if err == errNotResolvableDelta {
-						// We did not manage to make progress, but this might be fixed the next run
-						reqlogger.Debug("Base object was not found, keeping in list")
-						newdeltaqueuesize++
-						fmt.Fprintf(newdeltasqueue, "%s %s\n", toresolve.deltaobj, toresolve.baseobj)
-					} else {
-						reqlogger.WithError(err).Info("Error resolving delta")
-						sendSideBandPacket(w, sbstatus, sideBandProgress, []byte("ERR Delta resolving failed\n"))
-						sendUnpackFail(w, hasStatus, sbstatus, toupdate)
-						return
-					}
-				}
-				if !madeProgress {
-					// We did not make any progress, give up
-					reqlogger.Debug("Did not make any progress resolving deltas")
-					sendSideBandPacket(w, sbstatus, sideBandProgress, []byte("ERR Delta resolving failed\n"))
-					sendUnpackFail(w, hasStatus, sbstatus, toupdate)
-					return
-				}
-
-				deltaqueuesize = newdeltaqueuesize
-				deltasqueue.Close()
-				deltasqueue = newdeltasqueue
-
-				if deltaqueuesize == 0 {
-					reqlogger.Debug("Done with all deltas")
-					break
-				}
-			}
+		err = processDeltas(reqlogger, deltaqueuesize, deltasqueue, pushresultc, rw, sbstatus, projectstore, pusher)
+		if err != nil {
+			reqlogger.WithError(err).Info("Error processing deltas")
+			sendSideBandPacket(w, sbstatus, sideBandProgress, []byte("ERR Delta processing failed\n"))
+			sendUnpackFail(w, hasStatus, sbstatus, toupdate)
+			return
 		}
 
 		cfg.debugPacket(rw, sbstatus, "Delta resolving finished")
