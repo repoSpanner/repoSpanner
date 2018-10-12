@@ -17,15 +17,65 @@ type resolveInfo struct {
 	baseobj  storage.ObjectID
 }
 
+type resolveFailure struct {
+	obj resolveInfo
+	err error
+}
+
+func deltaProcessor(projectstore storage.ProjectStorageDriver, pusher storage.ProjectStoragePushDriver, input <-chan resolveInfo, results chan<- *resolveFailure) {
+	for msg := range input {
+		_, _, err := resolveDelta(projectstore, pusher, msg)
+		if err == nil {
+			// We managed to fully resolve this delta
+			results <- nil
+		} else if err == errNotResolvableDelta {
+			// We did not manage to make progress, but this might be fixed the next run
+			results <- &resolveFailure{obj: msg}
+		} else {
+			results <- &resolveFailure{err: err}
+		}
+	}
+}
+
+func getNextDelta(deltasqueue *os.File) (*resolveInfo, error) {
+	var deltaobj string
+	var baseobj string
+
+	_, err := fmt.Fscanf(deltasqueue, "%s %s\n", &deltaobj, &baseobj)
+	if err == io.EOF {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &resolveInfo{
+		deltaobj: storage.ObjectID(deltaobj),
+		baseobj:  storage.ObjectID(baseobj),
+	}, nil
+
+}
+
 func processDeltas(reqlogger *logrus.Entry, deltaqueuesize int, deltasqueue *os.File, pushresultc <-chan error, rw *wrappedResponseWriter, sbstatus sideBandStatus, projectstore storage.ProjectStorageDriver, pusher storage.ProjectStoragePushDriver) error {
 	// Resolve deltas
 	reqlogger.Debugf("Resolving %d deltas", deltaqueuesize)
 	var deltasresolved int
 	totaldeltas := deltaqueuesize
 
-	for {
-		if deltaqueuesize == 0 {
-			return nil
+	for deltaqueuesize != 0 {
+		// This is the generation loop
+		reqlogger.Debugf("Next generation of delta solving: %d", deltaqueuesize)
+
+		// Prepare and start the workers
+		input := make(chan resolveInfo)
+		defer func() {
+			if input != nil {
+				close(input)
+			}
+		}()
+		results := make(chan *resolveFailure)
+		// TODO: Figure out how to decide how many workers to start
+		for i := 0; i < 4; i++ {
+			go deltaProcessor(projectstore, pusher, input, results)
 		}
 
 		var newdeltaqueuesize int
@@ -36,87 +86,108 @@ func processDeltas(reqlogger *logrus.Entry, deltaqueuesize int, deltasqueue *os.
 		defer newdeltasqueue.Close()
 		defer os.Remove(newdeltasqueue.Name())
 
-		select {
-		case syncerr := <-pushresultc:
-			return errors.Wrap(syncerr, "Error syncing object to enough peers")
+		n, err := deltasqueue.Seek(0, 0)
+		if err != nil {
+			// Seeking failed? Weird...
+			return err
+		}
+		if n != 0 {
+			return errors.New("Delta queue seeking did not go to start of file")
+		}
 
-		default:
-			if rw.IsClosed() {
-				return errors.New("Connection closed")
-			}
-
-			reqlogger.Debugf("Next deneration of delta solving: %d", deltaqueuesize)
-			madeProgress := false
-
-			n, err := deltasqueue.Seek(0, 0)
-			if err != nil {
-				// Seeking failed? Weird...
-				return errors.Wrap(err, "Seeking in deltaqueue failed")
-			}
-			if n != 0 {
-				return errors.New("Seek did not go to start of file?")
-			}
-
-			for {
-				if deltasresolved%100 == 0 {
-					sendSideBandPacket(
-						rw,
-						sbstatus,
-						sideBandProgress,
-						[]byte(fmt.Sprintf(
-							"Resolving deltas (%d/%d)...\n",
-							deltasresolved,
-							totaldeltas,
-						)),
-					)
-				}
-
-				var deltaobj string
-				var baseobj string
-
-				_, err := fmt.Fscanf(deltasqueue, "%s %s\n", &deltaobj, &baseobj)
-				if err == io.EOF {
-					break
-				}
-				if err != nil {
-					return errors.Wrap(err, "Error resolving delta")
-				}
-				deltaqueuesize--
-				toresolve := resolveInfo{
-					deltaobj: storage.ObjectID(deltaobj),
-					baseobj:  storage.ObjectID(baseobj),
-				}
-
-				_, _, err = resolveDelta(projectstore, pusher, toresolve)
-				if err == nil {
-					// We managed to fully resolve this delta
-					deltasresolved++
-					madeProgress = true
-				} else if err == errNotResolvableDelta {
-					// We did not manage to make progress, but this might be fixed the next run
-					reqlogger.Debug("Base object was not found, keeping in list")
-					newdeltaqueuesize++
-					fmt.Fprintf(newdeltasqueue, "%s %s\n", toresolve.deltaobj, toresolve.baseobj)
-				} else {
-					return errors.Wrap(err, "Error resolving delta")
-				}
-			}
-			if !madeProgress {
-				// We did not make any progress, give up
-				reqlogger.Debug("Did not make any progress resolving deltas")
-				return errors.New("No delta progress was made")
-			}
-
-			deltaqueuesize = newdeltaqueuesize
-			deltasqueue.Close()
-			deltasqueue = newdeltasqueue
-
+		madeProgress := false
+		nextDelta, err := getNextDelta(deltasqueue)
+		if err != nil {
+			return err
+		}
+		if nextDelta == nil {
+			// Nothing to queue in this generation, we must be done
 			if deltaqueuesize == 0 {
-				reqlogger.Debug("Done with all deltas")
 				return nil
 			}
+			return errors.New("No further entries but non-empty queue")
 		}
+		deltaqueuesize--
+
+		inflight := 0
+		nextToSend := *nextDelta
+		lastprint := -1
+		for {
+			if deltasresolved%100 == 0 && deltasresolved != lastprint {
+				sendSideBandPacket(
+					rw,
+					sbstatus,
+					sideBandProgress,
+					[]byte(fmt.Sprintf(
+						"Resolving deltas (%d/%d)...\n",
+						deltasresolved,
+						totaldeltas,
+					)),
+				)
+				lastprint = deltasresolved
+			}
+
+			select {
+			case syncerr := <-pushresultc:
+				// Make sure that the workers terminate
+				if input != nil {
+					close(input)
+				}
+				return errors.Wrap(syncerr, "Error syncing object to enough peers")
+
+			case resolveres := <-results:
+				inflight--
+				if resolveres == nil {
+					deltasresolved++
+					madeProgress = true
+					// wg.Done()
+				} else if resolveres.err == nil {
+					// This is a requeued object: just didn't have a base
+					reqlogger.Debug("Base object was not found, keeping in list")
+					newdeltaqueuesize++
+					fmt.Fprintf(newdeltasqueue, "%s %s\n", resolveres.obj.deltaobj, resolveres.obj.baseobj)
+				} else {
+					// This was a resolve error
+					return errors.Wrap(err, "Error resolving delta")
+				}
+
+			case input <- nextToSend:
+				// Get next to send
+				inflight++
+				if rw.IsClosed() {
+					return errors.New("Connection closed")
+				}
+				nextDelta, err = getNextDelta(deltasqueue)
+				if err != nil {
+					return err
+				}
+				if nextDelta == nil {
+					reqlogger.Debug("Generation entries all submitted")
+					close(input)
+					input = nil
+				} else {
+					nextToSend = *nextDelta
+				}
+			}
+
+			if inflight == 0 && input == nil {
+				// Nothing more in flight for this generation: move on to the next
+				break
+			}
+		}
+
+		if !madeProgress {
+			// We did not make any progress, give up
+			reqlogger.Debug("Did not make any progress resolving deltas")
+			return errors.New("No delta progress was made")
+		}
+
+		deltaqueuesize = newdeltaqueuesize
+		deltasqueue.Close()
+		deltasqueue = newdeltasqueue
 	}
+
+	return nil
 }
 
 var errNotResolvableDelta = errors.New("Delta base object unresolvable")
