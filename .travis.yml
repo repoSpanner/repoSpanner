@@ -5,7 +5,9 @@ git:
   # We need the full repo for the metatest
   depth: false
 go:
+- "1.9"
 - "1.10"
+- "1.11"
 - master
 go_import_path: repospanner.org/repospanner
 # In no way would I suggest doing curl | sh normally.... But it's not my environment
