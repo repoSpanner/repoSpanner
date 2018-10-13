@@ -618,6 +618,12 @@ func createTestConfig(t *testing.T, node string, nodenr nodeNrType, extras ...st
 		node,
 		-1,
 	)
+	examplecfg = strings.Replace(
+		examplecfg,
+		"paranoid: false",
+		"paranoid: true",
+		-1,
+	)
 	if !useBubbleWrap {
 		examplecfg = strings.Replace(
 			examplecfg,

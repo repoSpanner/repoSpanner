@@ -27,6 +27,8 @@ certificates:
     git.example.com:
       cert: /etc/pki/repospanner/public.crt
       key:  /etc/pki/repospanner/public.key
+checks:
+  paranoid: false
 hooks:
   debug: false
   bubblewrap:

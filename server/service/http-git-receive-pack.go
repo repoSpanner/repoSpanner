@@ -10,6 +10,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/spf13/viper"
+
 	"github.com/sirupsen/logrus"
 	"repospanner.org/repospanner/server/storage"
 )
@@ -281,7 +283,7 @@ func (cfg *Service) serveGitReceivePack(w http.ResponseWriter, r *http.Request, 
 	rw.isfullyread = true
 
 	// TODO: Determine when to be paranoid and check objects all the way down
-	paranoid := false
+	paranoid := viper.GetBool("checks.paranoid")
 	cfg.debugPacket(rw, sbstatus, "Validating objects...")
 	reqlogger.Debug("Validating all objects are reachable and sufficient")
 	if err := validateObjects(projectstore, toupdate, paranoid); err != nil {
