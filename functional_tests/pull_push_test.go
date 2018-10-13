@@ -430,9 +430,13 @@ func performCompressedContentTest(t *testing.T, method cloneMethod) {
 	runRawCommand(t, "git", wdir1, nil, "commit", "-sm", "Writing our tests")
 
 	// Create 100 branches
-	for i := 0; i < 5000; i++ {
+	for i := 0; i < 100; i++ {
 		branch := "test-" + strconv.Itoa(i)
-		runRawCommand(t, "git", wdir1, nil, "branch", branch)
+		runRawCommand(t, "git", wdir1, nil, "checkout", "-b", branch)
+		writeTestFiles(t, wdir1, 1, i)
+		runRawCommand(t, "git", wdir1, nil, "add", ".")
+		runRawCommand(t, "git", wdir1, nil, "commit", "-sm", "Testing branch "+branch)
+		runRawCommand(t, "git", wdir1, nil, "checkout", "master")
 	}
 
 	// Push
