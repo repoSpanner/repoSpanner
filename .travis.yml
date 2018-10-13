@@ -14,7 +14,9 @@ go_import_path: repospanner.org/repospanner
 install:
 - curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
 before_script:
-- echo "127.0.0.1   node1.regiona.repospanner.local node2.regiona.repospanner.local node3.regiona.repospanner.local" | sudo tee -a /etc/hosts
+- echo "127.0.0.11   node1.regiona.repospanner.local" | sudo tee -a /etc/hosts
+- echo "127.0.0.12   node2.regiona.repospanner.local" | sudo tee -a /etc/hosts
+- echo "127.0.0.13   node3.regiona.repospanner.local" | sudo tee -a /etc/hosts
 script:
 - ./build.sh
 - go vet ./...

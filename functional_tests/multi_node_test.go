@@ -11,10 +11,10 @@ func nodeInfoVerification(t *testing.T, node nodeNrType) {
 	if !strings.Contains(nodeinfo, "https://node1.regiona.repospanner.local:1444") {
 		t.Error("Node A url not in node info")
 	}
-	if !strings.Contains(nodeinfo, "https://node2.regiona.repospanner.local:2444") {
+	if !strings.Contains(nodeinfo, "https://node2.regiona.repospanner.local:1444") {
 		t.Error("Node B url not in node info")
 	}
-	if !strings.Contains(nodeinfo, "https://node3.regiona.repospanner.local:3444") {
+	if !strings.Contains(nodeinfo, "https://node3.regiona.repospanner.local:1444") {
 		t.Error("Node C url not in node info")
 	}
 }

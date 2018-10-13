@@ -18,6 +18,10 @@ import (
 	"repospanner.org/repospanner/server/service"
 )
 
+// Maximum number of nodes supported in the test suite.
+// When increasing this, make sure that writeHostsFile gets extended.
+const maxNodes = 20
+
 var (
 	binary           string
 	bridgebinary     string
@@ -81,6 +85,8 @@ type nodeState struct {
 var (
 	testDir       string
 	cloneDir      string
+	socketDir     string
+	hostsFile     string
 	builtCa       bool
 	nodes         = make(map[nodeNrType]*nodeState)
 	doneC         = make(chan struct{})
@@ -134,9 +140,19 @@ func testCleanup(t *testing.T) {
 
 	testDir = ""
 	cloneDir = ""
+	socketDir = ""
+	hostsFile = ""
 	builtCa = false
 	nodes = make(map[nodeNrType]*nodeState)
 	useBubbleWrap = false
+}
+
+func addWrappers(env []string) []string {
+	return append(
+		env,
+		"LD_PRELOAD=libnss_wrapper.so",
+		"NSS_WRAPPER_HOSTS="+hostsFile,
+	)
 }
 
 func _runRawCommand(t *testing.T, binname, pwd string, envupdates []string, args ...string) (string, error) {
@@ -148,6 +164,7 @@ func _runRawCommand(t *testing.T, binname, pwd string, envupdates []string, args
 		"USER=admin",
 		"REPOBRIDGE_CONFIG="+pwd+".json",
 	)
+	envupdates = addWrappers(envupdates)
 	prefix := []string{}
 	if binname == "git" {
 		prefix = []string{"-c", "protocol.ext.allow=always"}
@@ -406,29 +423,44 @@ func (n nodeNrType) Name() string {
 }
 
 func (n nodeNrType) HTTPPort() int {
-	return int(n)*1000 + 443
+	return 1443
 }
 
 func (n nodeNrType) RPCPort() int {
-	return int(n)*1000 + 444
+	return 1444
+}
+
+func (n nodeNrType) CheckNr(t *testing.T) {
+	if n > maxNodes {
+		t.Errorf("Node %d requested, more than max %d", n, maxNodes)
+	}
+}
+
+func (n nodeNrType) FQDN() string {
+	return fmt.Sprintf(
+		"%s.%s.%s",
+		n.Name(),
+		testRegion,
+		testCluster,
+	)
+}
+
+func (n nodeNrType) IP() string {
+	return fmt.Sprintf("127.0.0.1%d", n)
 }
 
 func (n nodeNrType) HTTPBase() string {
 	return fmt.Sprintf(
-		"https://%s.%s.%s:%d",
-		n.Name(),
-		testRegion,
-		testCluster,
+		"https://%s:%d",
+		n.FQDN(),
 		n.HTTPPort(),
 	)
 }
 
 func (n nodeNrType) RPCBase() string {
 	return fmt.Sprintf(
-		"https://%s.%s.%s:%d",
-		n.Name(),
-		testRegion,
-		testCluster,
+		"https://%s:%d",
+		n.FQDN(),
 		n.RPCPort(),
 	)
 }
@@ -458,12 +490,16 @@ func createNodes(t *testing.T, nodes ...nodeNrType) {
 }
 
 func joinNode(t *testing.T, newnodenr nodeNrType, joiningnode nodeNrType) {
+	newnodenr.CheckNr(t)
+
 	createNodeCert(t, newnodenr)
 	runCommand(t, newnodenr.Name(), "serve", "--joinnode", joiningnode.RPCBase())
 	startNode(t, newnodenr)
 }
 
 func spawnNode(t *testing.T, nodenr nodeNrType) {
+	nodenr.CheckNr(t)
+
 	createNodeCert(t, nodenr)
 	runCommand(t, nodenr.Name(), "serve", "--spawn")
 	startNode(t, nodenr)
@@ -490,10 +526,15 @@ func startNode(t *testing.T, node nodeNrType) {
 		path.Join(testDir, node.Name()+"-config.yml"),
 		"serve",
 	)
+	env := []string{
+		"SOCKET_WRAPPER_DEFAULT_IFACE=" + fmt.Sprintf("1%d", node),
+	}
+	env = addWrappers(env)
 	// These are different from the state objects so we can seek without messing up
 	// the process channels
 	process.Stdout = procout
 	process.Stderr = procout
+	process.Env = append(os.Environ(), env...)
 
 	state.process = process
 
@@ -603,13 +644,13 @@ func createTestConfig(t *testing.T, node string, nodenr nodeNrType, extras ...st
 	examplecfg = strings.Replace(
 		examplecfg,
 		"0.0.0.0:8443",
-		fmt.Sprintf("0.0.0.0:%d", nodenr.RPCPort()),
+		fmt.Sprintf("%s:%d", nodenr.IP(), nodenr.RPCPort()),
 		-1,
 	)
 	examplecfg = strings.Replace(
 		examplecfg,
 		"0.0.0.0:443",
-		fmt.Sprintf("0.0.0.0:%d", nodenr.HTTPPort()),
+		fmt.Sprintf("%s:%d", nodenr.IP(), nodenr.HTTPPort()),
 		-1,
 	)
 	examplecfg = strings.Replace(
@@ -680,11 +721,34 @@ func createTestDirectory(t *testing.T) {
 	var err error
 	testDir, err = ioutil.TempDir("", "repospanner_functional_test_"+t.Name()+"_")
 	failIfErr(t, err, "creating testDir")
+
 	cloneDir = path.Join(testDir, "clones")
 	err = os.Mkdir(cloneDir, 0755)
 	failIfErr(t, err, "creating clonedir")
+
+	socketDir = path.Join(testDir, "sockets")
+	err = os.Mkdir(socketDir, 0755)
+	failIfErr(t, err, "creating socketdir")
+	writeHostsFile(t)
+
 	err = ioutil.WriteFile(path.Join(testDir, "testname"), []byte(t.Name()), 0644)
 	failIfErr(t, err, "writing testname")
+}
+
+func writeHostsFile(t *testing.T) {
+	hostsFile = path.Join(testDir, "hosts")
+	f, err := os.Create(hostsFile)
+	failIfErr(t, err, "creating hosts file")
+	defer func() {
+		err := f.Close()
+		failIfErr(t, err, "closing hosts file")
+	}()
+
+	var nr nodeNrType
+	for nr = 1; nr <= maxNodes; nr++ {
+		_, err := fmt.Fprintln(f, nr.IP(), nr.FQDN())
+		failIfErr(t, err, "writing host entry")
+	}
 }
 
 func failIfErr(t *testing.T, err error, doing string) {
