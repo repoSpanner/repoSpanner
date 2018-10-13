@@ -111,6 +111,9 @@ func (o *clusterStorageDriverObject) Close() error {
 }
 
 func (d *clusterStorageProjectDriverInstance) tryObjectFromNode(objectid storage.ObjectID, nodeid uint64) (storage.ObjectType, uint, io.ReadCloser, error) {
+	if nodeid == d.d.cfg.nodeid {
+		return storage.ObjectTypeBad, 0, nil, storage.ErrObjectNotFound
+	}
 	objecturl := d.d.cfg.GetPeerURL(nodeid, "/rpc/object/single/"+d.project+".git/"+string(objectid))
 
 	logger := d.d.cfg.log.WithFields(logrus.Fields{
