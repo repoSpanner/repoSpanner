@@ -285,6 +285,14 @@ func cloneCmdHTTPS(t *testing.T, node nodeNrType, reponame, username string) (cm
 }
 
 func clone(t *testing.T, method cloneMethod, node nodeNrType, reponame, username string, expectSuccess bool) string {
+	return _clone(t, method, node, reponame, username, expectSuccess, false)
+}
+
+func cloneBare(t *testing.T, method cloneMethod, node nodeNrType, reponame, username string, expectSuccess bool) string {
+	return _clone(t, method, node, reponame, username, expectSuccess, true)
+}
+
+func _clone(t *testing.T, method cloneMethod, node nodeNrType, reponame, username string, expectSuccess bool, bare bool) string {
 	ourdir, err := ioutil.TempDir(cloneDir, fmt.Sprintf("clone_%s_%s_", reponame, username))
 	failIfErr(t, err, "creating clone directory")
 
@@ -300,6 +308,9 @@ func clone(t *testing.T, method cloneMethod, node nodeNrType, reponame, username
 		t.Fatal("Unknown clone method", method)
 	}
 	cmd = append(cmd, ourdir)
+	if bare {
+		cmd = append(cmd, "--bare")
+	}
 
 	if !expectSuccess {
 		runFailingRawCommand(t, "git", "", envupdates, cmd...)
