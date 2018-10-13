@@ -1,6 +1,9 @@
 language: go
 # We modify /etc/hosts
 sudo: true
+git:
+  # We need the full repo for the metatest
+  depth: false
 go:
 - "1.10"
 - master
