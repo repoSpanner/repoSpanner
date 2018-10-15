@@ -245,7 +245,7 @@ func (store *stateStore) recoverFromSnapshot(snapshot []byte) error {
 	defer store.mux.Unlock()
 
 	var info map[string]datastructures.RepoInfo
-	if err := json.Unmarshal(snapshot, &store); err != nil {
+	if err := json.Unmarshal(snapshot, &info); err != nil {
 		return errors.Wrap(err, "Unable to recover from snapshot")
 	}
 	store.repoinfos = info
