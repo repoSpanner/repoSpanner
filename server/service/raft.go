@@ -219,7 +219,11 @@ func (rc *stateRaftNode) openWAL(snapshot *raftpb.Snapshot) *wal.WAL {
 func (rc *stateRaftNode) replayWAL() *wal.WAL {
 	rc.store.cfg.log.Debug("Replaying WAL")
 	snapshot := rc.loadSnapshot()
-	rc.store.cfg.log.Debugf("Loaded snapshot at index: %d", snapshot.Metadata.Index)
+	if snapshot == nil {
+		rc.store.cfg.log.Debug("No snapshot loaded")
+	} else {
+		rc.store.cfg.log.Debugf("Loaded snapshot at index: %d", snapshot.Metadata.Index)
+	}
 	w := rc.openWAL(snapshot)
 	_, st, ents, err := w.ReadAll()
 	if err != nil {
