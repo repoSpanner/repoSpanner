@@ -249,7 +249,7 @@ func (store *stateStore) recoverFromSnapshot(snapshot []byte) error {
 		return errors.Wrap(err, "Unable to recover from snapshot")
 	}
 	store.repoinfos = info
-	store.cfg.log.Debug("Restored snapshot")
+	store.cfg.log.Debugf("Restored snapshot with %d repos", len(store.repoinfos))
 	return nil
 }
 
@@ -416,6 +416,7 @@ func (store *stateStore) readCommits() {
 			// OR signaled to load snapshot
 			snapshot, err := store.snapshotter.Load()
 			if err == snap.ErrNoSnapshot {
+				store.cfg.log.Debug("Nil data with no snapshot")
 				return
 			}
 			if err != nil && err != snap.ErrNoSnapshot {
@@ -490,7 +491,7 @@ func (store *stateStore) readCommits() {
 		case pb.ChangeRequest_PUSHREQUEST:
 			r := req.GetPushreq()
 
-			store.cfg.log.Debug("Push request received")
+			store.cfg.log.Debugf("Push request received to %s", r.GetReponame())
 			store.processPush(r)
 			store.announceRepoChanges(r.GetReponame(), req)
 
@@ -713,6 +714,8 @@ func (store *stateStore) processPush(req *pb.PushRequest) {
 	defer store.mux.Unlock()
 
 	info := store.repoinfos[req.GetReponame()]
+
+	store.cfg.log.Debugf("Information for repo: %s", info)
 
 	result := store.getPushResult(req)
 	if !result.success {

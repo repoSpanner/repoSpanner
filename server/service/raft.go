@@ -181,7 +181,7 @@ func (rc *stateRaftNode) publishEntries(ents []raftpb.Entry) bool {
 func (rc *stateRaftNode) loadSnapshot() *raftpb.Snapshot {
 	snapshot, err := rc.snapshotter.Load()
 	if err != nil && err != snap.ErrNoSnapshot {
-		log.Fatalf("raftexample: error loading snapshot (%v)", err)
+		log.Fatalf("error loading snapshot (%v)", err)
 	}
 	return snapshot
 }
@@ -189,12 +189,12 @@ func (rc *stateRaftNode) loadSnapshot() *raftpb.Snapshot {
 func (rc *stateRaftNode) openWAL(snapshot *raftpb.Snapshot) *wal.WAL {
 	if !wal.Exist(rc.waldir) {
 		if err := os.Mkdir(rc.waldir, 0750); err != nil {
-			log.Fatalf("raftexample: cannot create dir for wal (%v)", err)
+			log.Fatalf("cannot create dir for wal (%v)", err)
 		}
 
 		w, err := wal.Create(rc.waldir, nil)
 		if err != nil {
-			log.Fatalf("raftexample: create wal error (%v)", err)
+			log.Fatalf("create wal error (%v)", err)
 		}
 		w.Close()
 	}
@@ -209,7 +209,7 @@ func (rc *stateRaftNode) openWAL(snapshot *raftpb.Snapshot) *wal.WAL {
 	}).Debug("Loading wal")
 	w, err := wal.Open(rc.waldir, walsnap)
 	if err != nil {
-		log.Fatalf("raftexample: error loading wal (%v)", err)
+		log.Fatalf("error loading wal (%v)", err)
 	}
 
 	return w
@@ -219,13 +219,15 @@ func (rc *stateRaftNode) openWAL(snapshot *raftpb.Snapshot) *wal.WAL {
 func (rc *stateRaftNode) replayWAL() *wal.WAL {
 	rc.store.cfg.log.Debug("Replaying WAL")
 	snapshot := rc.loadSnapshot()
+	rc.store.cfg.log.Debugf("Loaded snapshot at index: %d", snapshot.Metadata.Index)
 	w := rc.openWAL(snapshot)
 	_, st, ents, err := w.ReadAll()
 	if err != nil {
-		log.Fatalf("raftexample: failed to read WAL (%v)", err)
+		log.Fatalf("failed to read WAL (%v)", err)
 	}
 	rc.raftStorage = raft.NewMemoryStorage()
 	if snapshot != nil {
+		rc.store.cfg.log.Debug("Applying snapshot")
 		rc.raftStorage.ApplySnapshot(*snapshot)
 	}
 	rc.raftStorage.SetHardState(st)
@@ -252,7 +254,7 @@ func (rc *stateRaftNode) writeError(err error) {
 func (rc *stateRaftNode) startRaft(startedC chan<- struct{}) {
 	if !fileutil.Exist(rc.snapdir) {
 		if err := os.Mkdir(rc.snapdir, 0750); err != nil {
-			log.Fatalf("raftexample: cannot create dir for snapshot (%v)", err)
+			log.Fatalf("cannot create dir for snapshot (%v)", err)
 		}
 	}
 	rc.snapshotter = snap.New(rc.snapdir)
@@ -343,7 +345,7 @@ func (rc *stateRaftNode) publishSnapshot(snapshotToSave raftpb.Snapshot) {
 	rc.appliedIndex = snapshotToSave.Metadata.Index
 }
 
-var snapshotCatchUpEntriesN uint64 = 10000
+var snapshotCatchUpEntriesN uint64 = defaultSnapCount
 
 func (rc *stateRaftNode) maybeTriggerSnapshot() {
 	if rc.appliedIndex-rc.snapshotIndex <= rc.snapCount {
