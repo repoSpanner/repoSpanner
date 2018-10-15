@@ -233,6 +233,7 @@ func (rc *stateRaftNode) replayWAL() *wal.WAL {
 	if snapshot != nil {
 		rc.store.cfg.log.Debug("Applying snapshot")
 		rc.raftStorage.ApplySnapshot(*snapshot)
+		rc.commitC <- nil
 	}
 	rc.raftStorage.SetHardState(st)
 
