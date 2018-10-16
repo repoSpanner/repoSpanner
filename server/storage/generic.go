@@ -53,7 +53,7 @@ func (o ObjectType) HdrName() string {
 	case ObjectTypeRefDelta:
 		return "refdelta"
 	default:
-		panic(fmt.Errorf("Invalid object type %s requested", o))
+		panic(fmt.Errorf("Invalid object type %d requested", o))
 	}
 }
 
