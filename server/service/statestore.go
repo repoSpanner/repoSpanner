@@ -203,13 +203,6 @@ func (store *stateStore) RemoveFakeRefs(repo string, req *pb.PushRequest) {
 	}
 }
 
-func (store *stateStore) GetRepos() map[string]datastructures.RepoInfo {
-	store.mux.Lock()
-	defer store.mux.Unlock()
-
-	return store.repoinfos
-}
-
 func (store *stateStore) GetLastPushNode(project string) uint64 {
 	store.mux.Lock()
 	defer store.mux.Unlock()

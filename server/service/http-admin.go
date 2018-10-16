@@ -174,8 +174,11 @@ func (cfg *Service) serveAdminDeleteRepo(w http.ResponseWriter, r *http.Request)
 }
 
 func (cfg *Service) serveAdminListRepos(w http.ResponseWriter, r *http.Request) {
+	cfg.statestore.mux.Lock()
+	defer cfg.statestore.mux.Unlock()
+
 	cfg.respondJSONResponse(w, datastructures.RepoList{
-		Repos: cfg.statestore.GetRepos(),
+		Repos: cfg.statestore.repoinfos,
 	})
 	return
 }
