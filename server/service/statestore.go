@@ -722,8 +722,6 @@ func (store *stateStore) processPush(req *pb.PushRequest) {
 
 	info := store.repoinfos[req.GetReponame()]
 
-	store.cfg.log.Debugf("Information for repo: %s", info)
-
 	result := store.getPushResult(req)
 	if !result.success {
 		store.cfg.log.Error("Applied PushRequest was impossible....")
