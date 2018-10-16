@@ -409,6 +409,8 @@ func (store *stateStore) applyUpdateRequest(reponame string, request datastructu
 	store.repoinfos[reponame] = repo
 }
 
+var lastSnapshotApplied uint64
+
 func (store *stateStore) readCommits() {
 	for data := range store.commitC {
 		if data == nil {
@@ -423,7 +425,12 @@ func (store *stateStore) readCommits() {
 				store.cfg.log.WithError(err).Fatal("Error replaying log")
 				return
 			}
-			store.cfg.log.Debug("Loading snapshot")
+			if snapshot.Metadata.Index <= lastSnapshotApplied {
+				store.cfg.log.Debugf("Skipping snapshot with index %d", snapshot.Metadata.Index)
+				continue
+			}
+			store.cfg.log.Debugf("Loading snapshot with index %d", snapshot.Metadata.Index)
+			lastSnapshotApplied = snapshot.Metadata.Index
 			if err := store.recoverFromSnapshot(snapshot.Data); err != nil {
 				store.cfg.log.WithError(err).Fatal("Error loading snapshot")
 				return
