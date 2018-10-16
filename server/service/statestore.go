@@ -720,7 +720,11 @@ func (store *stateStore) processPush(req *pb.PushRequest) {
 	store.mux.Lock()
 	defer store.mux.Unlock()
 
-	info := store.repoinfos[req.GetReponame()]
+	info, ok := store.repoinfos[req.GetReponame()]
+
+	if !ok {
+		panic("Push on invalid repo detected")
+	}
 
 	result := store.getPushResult(req)
 	if !result.success {
