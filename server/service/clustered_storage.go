@@ -18,6 +18,8 @@ import (
 	"repospanner.org/repospanner/server/storage"
 )
 
+const maxAttempts = 3
+
 var errDupeObject = errors.New("clustered_storage: Duplicated object ignored")
 
 type clusterStorageDriverInstance struct {
@@ -124,20 +126,34 @@ func (d *clusterStorageProjectDriverInstance) tryObjectFromNode(objectid storage
 	})
 	logger.Debug("Trying to get object from peer")
 
-	resp, err := d.d.cfg.rpcClient.Get(objecturl)
-	if err != nil {
-		return storage.ObjectTypeBad, 0, nil, err
-	}
-	if resp.StatusCode == http.StatusNotFound {
-		resp.Body.Close()
-		return storage.ObjectTypeBad, 0, nil, storage.ErrObjectNotFound
-	}
-	if resp.StatusCode != http.StatusOK {
-		resp.Body.Close()
-		return storage.ObjectTypeBad, 0, nil, errors.Errorf("Status code: %d, status message: %s",
-			resp.StatusCode,
-			resp.Status,
-		)
+	var resp *http.Response
+	attempt := 1
+	for resp == nil {
+		var err error
+		resp, err = d.d.cfg.rpcClient.Get(objecturl)
+		if err != nil {
+			if attempt < maxAttempts {
+				// Retry
+				attempt++
+				if attempt >= maxAttempts {
+					return storage.ObjectTypeBad, 0, nil, err
+				}
+				logger.WithError(err).Debugf("Failed, retrying %d/%d", attempt, maxAttempts)
+				continue
+			}
+			return storage.ObjectTypeBad, 0, nil, err
+		}
+		if resp.StatusCode == http.StatusNotFound {
+			resp.Body.Close()
+			return storage.ObjectTypeBad, 0, nil, storage.ErrObjectNotFound
+		}
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			return storage.ObjectTypeBad, 0, nil, errors.Errorf("Status code: %d, status message: %s",
+				resp.StatusCode,
+				resp.Status,
+			)
+		}
 	}
 
 	// We got an object! Stream and store

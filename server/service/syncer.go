@@ -48,9 +48,20 @@ func (cfg *Service) syncSingleObject(peer uint64, d storage.ProjectStorageDriver
 	req.Header.Add("X-Objecttype", objtype.HdrName())
 	req.Header.Add("X-Objectsize", strconv.FormatUint(uint64(objsize), 10))
 
-	resp, err := cfg.rpcClient.Do(req)
-	if err != nil {
-		return err
+	var resp *http.Response
+	attempt := 0
+	for resp == nil {
+		resp, err = cfg.rpcClient.Do(req)
+		if err != nil {
+			if attempt < maxAttempts {
+				// Retry
+				attempt++
+				if attempt >= maxAttempts {
+					return err
+				}
+				continue
+			}
+		}
 	}
 	defer resp.Body.Close()
 
