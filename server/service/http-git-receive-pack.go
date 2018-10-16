@@ -143,7 +143,7 @@ func (cfg *Service) serveGitReceivePack(w http.ResponseWriter, r *http.Request, 
 			}
 		}
 		expectedSum := make([]byte, packhasher.Size())
-		if _, err := bodyreader.Read(expectedSum); err != nil {
+		if _, err := io.ReadFull(bodyreader, expectedSum); err != nil {
 			reqlogger.WithError(err).Info("Error reading expected checksum")
 			sendSideBandPacket(rw, sbstatus, sideBandProgress, []byte("ERR Packfile checksum failed\n"))
 			sendUnpackFail(rw, hasStatus, sbstatus, toupdate)
