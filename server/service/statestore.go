@@ -31,7 +31,7 @@ type PushResult struct {
 
 type stateStore struct {
 	cfg       *Service
-	mux       sync.Mutex
+	mux       sync.RWMutex
 	directory string
 
 	Peers       map[uint64]string
@@ -45,10 +45,10 @@ type stateStore struct {
 	fakerefs map[string]map[string]string
 
 	repoChangeListeners    map[string][]chan *pb.ChangeRequest
-	repoChangeListenersMux sync.Mutex
+	repoChangeListenersMux sync.RWMutex
 
 	confChangeListeners    []chan raftpb.ConfChange
-	confChangeListenersMux sync.Mutex
+	confChangeListenersMux sync.RWMutex
 
 	raftnode     *stateRaftNode
 	started      bool
@@ -204,30 +204,30 @@ func (store *stateStore) RemoveFakeRefs(repo string, req *pb.PushRequest) {
 }
 
 func (store *stateStore) GetLastPushNode(project string) uint64 {
-	store.mux.Lock()
-	defer store.mux.Unlock()
+	store.mux.RLock()
+	defer store.mux.RUnlock()
 
 	return store.repoinfos[project].LastPushNode
 }
 
 func (store *stateStore) GetRepoHooks(project string) datastructures.RepoHookInfo {
-	store.mux.Lock()
-	defer store.mux.Unlock()
+	store.mux.RLock()
+	defer store.mux.RUnlock()
 
 	return store.repoinfos[project].Hooks
 }
 
 func (store *stateStore) IsRepoPublic(project string) bool {
-	store.mux.Lock()
-	defer store.mux.Unlock()
+	store.mux.RLock()
+	defer store.mux.RUnlock()
 
 	return store.repoinfos[project].Public
 }
 
 func (store *stateStore) getSnapshot() ([]byte, error) {
 	store.cfg.log.Debug("Getting snapshot")
-	store.mux.Lock()
-	defer store.mux.Unlock()
+	store.mux.RLock()
+	defer store.mux.RUnlock()
 
 	return json.Marshal(store.repoinfos)
 }
@@ -294,8 +294,8 @@ func (store *stateStore) RunStateStore(errchan chan<- error, startedC chan<- str
 }
 
 func (store *stateStore) announceConfChange(req raftpb.ConfChange) {
-	store.confChangeListenersMux.Lock()
-	defer store.confChangeListenersMux.Unlock()
+	store.confChangeListenersMux.RLock()
+	defer store.confChangeListenersMux.RUnlock()
 
 	for _, listener := range store.confChangeListeners {
 		listener <- req
@@ -333,8 +333,8 @@ func (store *stateStore) unsubscribeConfChange(ccC chan raftpb.ConfChange) {
 }
 
 func (store *stateStore) announceRepoChanges(repo string, req *pb.ChangeRequest) {
-	store.repoChangeListenersMux.Lock()
-	defer store.repoChangeListenersMux.Unlock()
+	store.repoChangeListenersMux.RLock()
+	defer store.repoChangeListenersMux.RUnlock()
 
 	listeners, anylisteners := store.repoChangeListeners[repo]
 	if anylisteners {
