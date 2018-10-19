@@ -6,7 +6,6 @@ import (
 	"compress/zlib"
 	"crypto/sha1"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"hash"
 	"io"
@@ -16,6 +15,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/pkg/errors"
 
 	"github.com/sirupsen/logrus"
 	"repospanner.org/repospanner/server/constants"
@@ -1570,8 +1571,10 @@ func writeTreeToPack(w io.Writer, p storage.ProjectStorageDriver, treeid storage
 	zwriter.Flush()
 	zwriter.Close()
 
-	if len(treader.info.entries) == 0 {
-		return 0, errors.New("No entries parsed in tree?")
+	if len(treader.info.entries) == 0 && objsize != 0 {
+		// This should indicate that we have made an error parsing the
+		// tree object.
+		return 0, errors.Errorf("Tree object %s misparsed", treeid)
 	}
 
 	// We start at 1 entry: we just sent ourselves

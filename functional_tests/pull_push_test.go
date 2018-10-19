@@ -349,22 +349,41 @@ func TestDuplicateObjects(t *testing.T) {
 func performDuplicateObjectsTest(t *testing.T, method cloneMethod) {
 	// This test catches the case where the same object is pushed twice.
 	// This happens if multiple branches are pushed at the same time.
+	performBrokenRepoTest(t, method, "20")
+}
+
+func TestEmptyTree(t *testing.T) {
+	// This tests to make sure we don't crash when empty trees are found.
+	runForTestedCloneMethods(t, performEmptyTreeTest)
+}
+
+func performEmptyTreeTest(t *testing.T, method cloneMethod) {
+	performBrokenRepoTest(t, method, "26")
+}
+
+// performBrokenRepoTest tries pushing and pulling a blob repository from
+// the test suite. This is useful to reproduce bugs from weird repos.
+func performBrokenRepoTest(t *testing.T, method cloneMethod, issue string) {
 	defer testCleanup(t)
 	nodea := nodeNrType(1)
 	nodeb := nodeNrType(2)
+	nodec := nodeNrType(3)
 
-	createNodes(t, nodea, nodeb)
+	createNodes(t, nodea, nodeb, nodec)
 
 	createRepo(t, nodea, "test1", true)
 
 	wdir1 := clone(t, method, nodea, "test1", "admin", true)
-	getBlobRepo(t, wdir1, "20")
+	getBlobRepo(t, wdir1, issue)
 
 	// Push
-	pushout := runRawCommand(t, "git", wdir1, nil, "push", "origin", "c7")
-	if !strings.Contains(pushout, "* [new branch]      c7 -> c7") {
+	pushout := runRawCommand(t, "git", wdir1, nil, "push", "origin", "--mirror")
+	if !strings.Contains(pushout, "* [new branch]      ") {
 		t.Fatal("Something went wrong in pushing")
 	}
+
+	// Pull it back
+	clone(t, method, nodeb, "test1", "admin", true)
 }
 
 func TestCloneEditPushRecloneSingleNodeEmojiBranch(t *testing.T) {
