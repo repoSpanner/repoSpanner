@@ -14,7 +14,6 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-
 	"repospanner.org/repospanner/server/storage"
 )
 
@@ -113,7 +112,7 @@ func (o *clusterStorageDriverObject) Close() error {
 }
 
 func (d *clusterStorageProjectDriverInstance) tryObjectFromNode(objectid storage.ObjectID, nodeid uint64) (storage.ObjectType, uint, io.ReadCloser, error) {
-	if nodeid == d.d.cfg.nodeid {
+	if nodeid == d.d.cfg.nodeid || nodeid == 0 {
 		return storage.ObjectTypeBad, 0, nil, storage.ErrObjectNotFound
 	}
 	objecturl := d.d.cfg.GetPeerURL(nodeid, "/rpc/object/single/"+d.project+".git/"+string(objectid))
