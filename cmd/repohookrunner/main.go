@@ -117,16 +117,25 @@ func main() {
 	err = cmd.Run()
 	failIfError(err, "Error cloning the repository")
 
+	tos := make([]string, 0)
+
 	for refname, req := range request.Requests {
 		if req[1] == string(storage.ZeroID) {
 			// This is a deletion. Nothing to fetch for that
 			continue
 		}
-		cmd := exec.Command(
-			"git",
+		tos = append(tos, fmt.Sprintf("refs/heads/fake/%s/%s", request.PushUUID, refname))
+	}
+
+	if len(tos) > 0 {
+		cmdstr := []string{
 			"fetch",
 			"origin",
-			fmt.Sprintf("refs/heads/fake/%s/%s", request.PushUUID, refname),
+		}
+		cmdstr = append(cmdstr, tos...)
+		cmd := exec.Command(
+			"git",
+			cmdstr...,
 		)
 		cmd.Dir = path.Join(workdir, "hookrun", "clone")
 		if debug {
