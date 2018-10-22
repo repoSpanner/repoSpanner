@@ -441,6 +441,10 @@ func createRepo(t *testing.T, node nodeNrType, reponame string, public bool) {
 		runCommand(t, node.Name(),
 			"admin", "repo", "create", reponame)
 	}
+	runCommand(
+		t, node.Name(),
+		"admin", "repo", "edit", reponame, "--hook-pre-receive", "blobs/test.sh",
+	)
 }
 
 func createNodes(t *testing.T, nodes ...nodeNrType) {
