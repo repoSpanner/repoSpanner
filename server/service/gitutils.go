@@ -1582,11 +1582,21 @@ func writeTreeToPack(w io.Writer, p storage.ProjectStorageDriver, treeid storage
 	// We start at 1 entry: we just sent ourselves
 	var entriessent uint32 = 1
 	for _, entry := range treader.info.entries {
-		if entry.mode.IsDir() {
+		if entry.isGitSubmodule() {
+			numsent, err := writeCommitOrTagToPack(w, p, entry.objectid, written, commonobjects, true)
+			if err == nil {
+				entriessent += numsent
+			} else if err == storage.ErrObjectNotFound {
+				// This could be because we don't have the Git objects...
+				// Git clients should be able to get these back from the .gitmodules source repo.
+			} else {
+				return entriessent, err
+			}
+		} else if entry.mode.IsDir() {
 			// This is a subtree
 			numsent, err := writeTreeToPack(w, p, entry.objectid, written, commonobjects)
 			if err != nil {
-				return entriessent, nil
+				return entriessent, err
 			}
 			entriessent += numsent
 		} else {
@@ -1643,7 +1653,6 @@ func writeCommitOrTagToPack(w io.Writer, p storage.ProjectStorageDriver, commiti
 	} else if commonobjects.Contains(commitid) {
 		return 0, nil
 	}
-	written.Add(commitid)
 
 	objtype, objsize, r, err := p.ReadObject(commitid)
 	if err != nil {
@@ -1652,6 +1661,7 @@ func writeCommitOrTagToPack(w io.Writer, p storage.ProjectStorageDriver, commiti
 	if objtype != storage.ObjectTypeCommit && objtype != storage.ObjectTypeTag {
 		return 0, fmt.Errorf("Object %s not a commit or tag?", commitid)
 	}
+	written.Add(commitid)
 
 	err = writeObjectHeader(w, objtype, objsize)
 	if err != nil {
