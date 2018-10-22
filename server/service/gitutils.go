@@ -17,7 +17,6 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
-
 	"github.com/sirupsen/logrus"
 	"repospanner.org/repospanner/server/constants"
 	pb "repospanner.org/repospanner/server/protobuf"
@@ -1224,7 +1223,10 @@ func validateTree(p storage.ProjectStorageDriver, treeid storage.ObjectID, seent
 	r.Close()
 
 	for _, entry := range treeinfo.entries {
-		if entry.mode.IsDir() {
+		if entry.isGitSubmodule() {
+			// This is a Git submodule, it is very likely we won't have the commit actually, so let's
+			// not validate it... The Git client itself will also silently ignore it anyway.
+		} else if entry.mode.IsDir() {
 			// This is a subtree
 			if err := validateTree(p, entry.objectid, append(seentrees, treeid)); err != nil {
 				return err

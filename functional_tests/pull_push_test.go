@@ -361,6 +361,15 @@ func performEmptyTreeTest(t *testing.T, method cloneMethod) {
 	performBrokenRepoTest(t, method, "26")
 }
 
+func TestSubmodules(t *testing.T) {
+	// This tests to make sure we don't verify submodule contents
+	runForTestedCloneMethods(t, performSubmoduleTest)
+}
+
+func performSubmoduleTest(t *testing.T, method cloneMethod) {
+	performBrokenRepoTest(t, method, "27")
+}
+
 // performBrokenRepoTest tries pushing and pulling a blob repository from
 // the test suite. This is useful to reproduce bugs from weird repos.
 func performBrokenRepoTest(t *testing.T, method cloneMethod, issue string) {
