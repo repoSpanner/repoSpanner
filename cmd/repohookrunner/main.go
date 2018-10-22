@@ -117,6 +117,14 @@ func main() {
 	err = cmd.Run()
 	failIfError(err, "Error cloning the repository")
 
+	// Delete Git's .sample hook files
+	hookfiles, err := ioutil.ReadDir(path.Join(workdir, "hookrun", "clone", "hooks"))
+	failIfError(err, "Error getting hookfiles")
+	for _, hookfile := range hookfiles {
+		err := os.Remove(path.Join(workdir, "hookrun", "clone", "hooks", hookfile.Name()))
+		failIfError(err, "Error removing hookfile")
+	}
+
 	tos := make([]string, 0)
 
 	for refname, req := range request.Requests {
