@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"repospanner.org/repospanner/server/storage"
 )
@@ -21,6 +22,12 @@ type treeEntry struct {
 	mode     os.FileMode
 	name     string
 	objectid storage.ObjectID
+}
+
+const s_IFGITLINK = 0160000
+
+func (t treeEntry) isGitSubmodule() bool {
+	return (t.mode & syscall.S_IFMT) == s_IFGITLINK
 }
 
 type treeInfo struct {
@@ -232,7 +239,9 @@ func (t *treeReader) parseEntries() error {
 			}
 
 			// Git thinks it's being funny with inventing its own mode bits....
-			if (mode & 0040000) != 0 {
+			if (mode & syscall.S_IFMT) == s_IFGITLINK {
+				// This is a Git submodule link....
+			} else if (mode & 0040000) != 0 {
 				mode = (mode & ^0040000) | int64(os.ModeDir)
 			}
 
