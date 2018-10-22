@@ -17,11 +17,9 @@ import (
 	"syscall"
 
 	"golang.org/x/net/http2"
-
+	"repospanner.org/repospanner/server/constants"
 	"repospanner.org/repospanner/server/datastructures"
 	"repospanner.org/repospanner/server/storage"
-
-	"repospanner.org/repospanner/server/constants"
 )
 
 var debug bool
@@ -64,6 +62,10 @@ func main() {
 	err = json.Unmarshal(breq, &request)
 	failIfError(err, "Error parsing request")
 	debug = request.Debug
+
+	if debug {
+		fmt.Println("repoSpanner Hook Runner " + constants.PublicVersionString())
+	}
 
 	// Before doing anything else, lower privileges
 	if request.User != 0 {
@@ -108,6 +110,10 @@ func main() {
 		request.RPCURL+"/rpc/repo/"+request.ProjectName+".git",
 		path.Join(workdir, "hookrun", "clone"),
 	)
+	if debug {
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	}
 	err = cmd.Run()
 	failIfError(err, "Error cloning the repository")
 
@@ -123,6 +129,10 @@ func main() {
 			fmt.Sprintf("refs/heads/fake/%s/%s", request.PushUUID, refname),
 		)
 		cmd.Dir = path.Join(workdir, "hookrun", "clone")
+		if debug {
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+		}
 		err = cmd.Run()
 		failIfError(err, "Error grabbing the To objects")
 	}
