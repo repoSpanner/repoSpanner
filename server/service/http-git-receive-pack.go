@@ -10,9 +10,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/spf13/viper"
-
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 	"repospanner.org/repospanner/server/storage"
 )
 
@@ -299,26 +298,9 @@ func (cfg *Service) serveGitReceivePack(w http.ResponseWriter, r *http.Request, 
 		reqlogger.Debug("Connection closed")
 		return
 	}
-	// We wait for either the first error, or the waitgroup to be fully done, which will
-	// close the channel, returning a <nil> value.
-	cfg.debugPacket(rw, sbstatus, "Syncing objects...")
+
+	// Inform the pusher we have sent all the objects we're going to send it
 	pusher.Done()
-	syncerr, isopen := <-pushresultc
-	if syncerr == nil && isopen == true {
-		// Someone sent <nil> over the channel. That is a coding error.
-		sendSideBandPacket(w, sbstatus, sideBandProgress, []byte("ERR Object sync failed\n"))
-		sendUnpackFail(w, hasStatus, sbstatus, toupdate)
-		// This is a definite coding error. Let's panic to be really, *really* obnoxious in logs.
-		// The http.Server should capture it, and prevent the server from crashing alltogether.
-		panic("syncerr channel got nil without close, coding error")
-	}
-	if syncerr != nil {
-		reqlogger.WithError(syncerr).Info("Error syncing object out to enough nodes")
-		sendSideBandPacket(w, sbstatus, sideBandProgress, []byte("ERR Object sync failed\n"))
-		sendUnpackFail(w, hasStatus, sbstatus, toupdate)
-		return
-	}
-	cfg.debugPacket(rw, sbstatus, "Objects synced")
 
 	cfg.statestore.AddFakeRefs(reponame, toupdate)
 	defer cfg.statestore.RemoveFakeRefs(reponame, toupdate)
@@ -356,6 +338,26 @@ func (cfg *Service) serveGitReceivePack(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	cfg.debugPacket(rw, sbstatus, "Update hook done")
+
+	// We wait for either the first error, or the waitgroup to be fully done, which will
+	// close the channel, returning a <nil> value.
+	cfg.debugPacket(rw, sbstatus, "Syncing objects...")
+	syncerr, isopen := <-pushresultc
+	if syncerr == nil && isopen == true {
+		// Someone sent <nil> over the channel. That is a coding error.
+		sendSideBandPacket(w, sbstatus, sideBandProgress, []byte("ERR Object sync failed\n"))
+		sendUnpackFail(w, hasStatus, sbstatus, toupdate)
+		// This is a definite coding error. Let's panic to be really, *really* obnoxious in logs.
+		// The http.Server should capture it, and prevent the server from crashing alltogether.
+		panic("syncerr channel got nil without close, coding error")
+	}
+	if syncerr != nil {
+		reqlogger.WithError(syncerr).Info("Error syncing object out to enough nodes")
+		sendSideBandPacket(w, sbstatus, sideBandProgress, []byte("ERR Object sync failed\n"))
+		sendUnpackFail(w, hasStatus, sbstatus, toupdate)
+		return
+	}
+	cfg.debugPacket(rw, sbstatus, "Objects synced")
 
 	cfg.debugPacket(rw, sbstatus, "Requesting push...")
 	pushresult := cfg.statestore.performPush(toupdate)
