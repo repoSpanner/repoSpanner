@@ -285,8 +285,8 @@ func (store *stateStore) RunStateStore(errchan chan<- error, startedC chan<- str
 			errchan <- errors.New("Not started within the expected time")
 		})
 	} else {
-		//timer := time.NewTicker(5 * time.Second)
-		//pingchan = timer.C
+		ticker := time.NewTicker(5 * time.Second)
+		pingchan = ticker.C
 	}
 	for {
 		select {
