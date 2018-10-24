@@ -67,13 +67,13 @@ func runAdminNodeStatus(cmd *cobra.Command, args []string) {
 		"admin/nodestatus",
 		&resp,
 	)
-	if shouldExit {
-		return
-	}
-
 	lastselfping := resp.PeerPings[resp.NodeID]
 	lastselfpingtime := time.Unix(0, *lastselfping.Timestamp)
 	timesinceping := time.Since(lastselfpingtime)
+	if shouldExit {
+		exitStatus(timesinceping)
+		return
+	}
 
 	if val, _ := cmd.Flags().GetBool("nagios"); val {
 		outputNagiosStatus(resp, timesinceping)
