@@ -285,16 +285,19 @@ func cloneCmdHTTPS(t *testing.T, node nodeNrType, reponame, username string) (cm
 }
 
 func clone(t *testing.T, method cloneMethod, node nodeNrType, reponame, username string, expectSuccess bool) string {
-	return _clone(t, method, node, reponame, username, expectSuccess, false)
+	return _clone(t, method, node, reponame, username, "", expectSuccess, false)
 }
 
 func cloneBare(t *testing.T, method cloneMethod, node nodeNrType, reponame, username string, expectSuccess bool) string {
-	return _clone(t, method, node, reponame, username, expectSuccess, true)
+	return _clone(t, method, node, reponame, username, "", expectSuccess, true)
 }
 
-func _clone(t *testing.T, method cloneMethod, node nodeNrType, reponame, username string, expectSuccess bool, bare bool) string {
-	ourdir, err := ioutil.TempDir(cloneDir, fmt.Sprintf("clone_%s_%s_", reponame, username))
-	failIfErr(t, err, "creating clone directory")
+func _clone(t *testing.T, method cloneMethod, node nodeNrType, reponame, username, ourdir string, expectSuccess bool, bare bool) string {
+	if ourdir == "" {
+		tempdir, err := ioutil.TempDir(cloneDir, fmt.Sprintf("clone_%s_%s_", reponame, username))
+		failIfErr(t, err, "creating clone directory")
+		ourdir = tempdir
+	}
 
 	createSSHBridgeConfig(t, node, ourdir+".json")
 
