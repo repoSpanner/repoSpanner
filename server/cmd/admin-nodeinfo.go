@@ -17,6 +17,19 @@ var adminNodeInfoCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(0),
 }
 
+const warnTime = 5 * time.Second
+const errTime = 15 * time.Second
+
+func exitStatus(d time.Duration) {
+	if d >= errTime {
+		os.Exit(2)
+	} else if d >= warnTime {
+		os.Exit(1)
+	} else {
+		os.Exit(0)
+	}
+}
+
 func outputRawStatus(resp datastructures.NodeStatus, timesinceping time.Duration) {
 	fmt.Printf("Node ID: %d\n", resp.NodeID)
 	fmt.Printf("Node name: %s\n", resp.NodeName)
@@ -28,17 +41,25 @@ func outputNagiosStatus(resp datastructures.NodeStatus, timesinceping time.Durat
 
 	if timesinceping >= (15 * time.Second) {
 		fmt.Println("CRITICAL:", msg)
-		os.Exit(2)
 	} else if timesinceping >= (5 * time.Second) {
 		fmt.Println("WARNING:", msg)
-		os.Exit(2)
 	} else {
 		fmt.Println("OK:", msg)
-		os.Exit(0)
 	}
 }
 
 func runAdminNodeStatus(cmd *cobra.Command, args []string) {
+	defer func() {
+		if r := recover(); r != nil {
+			if val, _ := cmd.Flags().GetBool("nagios"); val {
+				fmt.Println("CRITICAL: Error checking status:", r)
+			} else {
+				fmt.Println("Error while checking:", r)
+			}
+			os.Exit(3)
+		}
+	}()
+
 	clnt := getAdminClient()
 	var resp datastructures.NodeStatus
 
@@ -59,6 +80,8 @@ func runAdminNodeStatus(cmd *cobra.Command, args []string) {
 	} else {
 		outputRawStatus(resp, timesinceping)
 	}
+
+	exitStatus(timesinceping)
 }
 
 func init() {
