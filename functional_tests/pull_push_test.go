@@ -67,7 +67,7 @@ func inRange(start, stop, n int) bool {
 	return n >= start && n <= stop
 }
 
-func writeTestFile(t *testing.T, wdir, name, body string, intestdir bool) {
+func writeTestFile(t tester, wdir, name, body string, intestdir bool) {
 	var fname string
 	if intestdir {
 		fname = path.Join(wdir, "testdir", name)
@@ -84,7 +84,7 @@ func writeTestFile(t *testing.T, wdir, name, body string, intestdir bool) {
 	failIfErr(t, err, "writing "+name)
 }
 
-func writeTestFiles(t *testing.T, wdir string, start, stop int) {
+func writeTestFiles(t tester, wdir string, start, stop int) {
 	if start == 0 {
 		err := os.Mkdir(path.Join(wdir, "testdir"), 0755)
 		failIfErr(t, err, "creating test directory")
