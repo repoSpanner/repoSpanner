@@ -1,5 +1,9 @@
 package datastructures
 
+import (
+	pb "repospanner.org/repospanner/server/protobuf"
+)
+
 type RepoRequestInfo struct {
 	Reponame string
 	Public   bool
@@ -58,6 +62,8 @@ type NodeInfo struct {
 
 type NodeStatus struct {
 	NodeInfo
+
+	PeerPings map[uint64]pb.PingMessage
 
 	LeaderNode uint64
 

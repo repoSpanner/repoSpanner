@@ -30,16 +30,24 @@ message DeleteRepoRequest {
     required string reponame = 1;
 }
 
+message PingMessage {
+    required uint64 pingnode = 1;
+    required int64 timestamp = 2;
+    required uint64 appliedIndex = 3;
+}
+
 message ChangeRequest {
     enum ChangeRequestType {
         NEWREPO = 1;
         EDITREPO = 2;
         DELETEREPO = 3;
         PUSHREQUEST = 4;
+        PING = 5;
     }
     required ChangeRequestType ctype = 1;
     optional NewRepoRequest newreporeq = 2;
     optional EditRepoRequest editreporeq = 3;
     optional DeleteRepoRequest deletereporeq = 4;
     optional PushRequest pushreq = 5;
+    optional PingMessage pingmsg = 6;
 }

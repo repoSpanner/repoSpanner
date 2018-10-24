@@ -31,7 +31,8 @@ func (cfg *Service) getNodeStatus() datastructures.NodeStatus {
 	rntransport := rn.transport
 
 	return datastructures.NodeStatus{
-		NodeInfo: cfg.getNodeInfo(),
+		NodeInfo:  cfg.getNodeInfo(),
+		PeerPings: cfg.statestore.peerPings,
 
 		// Raft node status
 		LeaderNode: rnstatus.Lead,

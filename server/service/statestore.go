@@ -11,12 +11,10 @@ import (
 	"time"
 
 	"github.com/coreos/etcd/raft/raftpb"
-	"github.com/golang/protobuf/proto"
-	"github.com/spf13/viper"
-
 	"github.com/coreos/etcd/snap"
+	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
-
+	"github.com/spf13/viper"
 	"repospanner.org/repospanner/server/datastructures"
 	pb "repospanner.org/repospanner/server/protobuf"
 	"repospanner.org/repospanner/server/storage"
@@ -35,6 +33,7 @@ type stateStore struct {
 	directory string
 
 	Peers       map[uint64]string
+	peerPings   map[uint64]pb.PingMessage
 	ClusterName string
 	RegionName  string
 	NodeName    string
@@ -113,6 +112,7 @@ func (cfg *Service) loadStateStore(spawning bool, joinnode string, directory str
 		repoChangeListeners: make(map[string][]chan *pb.ChangeRequest),
 		confChangeListeners: []chan raftpb.ConfChange{},
 		fakerefs:            make(map[string]map[string]string),
+		peerPings:           make(map[uint64]pb.PingMessage),
 	}
 
 	cts, err := ioutil.ReadFile(path.Join(directory, "state.json"))
@@ -274,6 +274,7 @@ func (store *stateStore) RunStateStore(errchan chan<- error, startedC chan<- str
 	store.cfg.log.Debug("WAL Replayed")
 	go store.readCommits()
 	store.cfg.log.Debug("stateStore ready")
+	var pingchan <-chan time.Time
 	if store.stopOnFinish {
 		// We have finished initialization, terminate
 		go func() {
@@ -283,14 +284,45 @@ func (store *stateStore) RunStateStore(errchan chan<- error, startedC chan<- str
 		time.AfterFunc(5*time.Second, func() {
 			errchan <- errors.New("Not started within the expected time")
 		})
+	} else {
+		timer := time.NewTicker(5 * time.Second)
+		pingchan = timer.C
 	}
-	select {
-	case err := <-store.errorC:
-		errchan <- errors.Wrap(err, "State error")
-	case <-store.raftnode.stoppedc:
-		store.cfg.log.Info("Stopped state")
-		errchan <- nil
+	for {
+		select {
+		case <-pingchan:
+			// Do a regular ping
+			if err := store.sendPing(); err != nil {
+				errchan <- err
+			}
+
+		case err := <-store.errorC:
+			errchan <- errors.Wrap(err, "State error")
+			return
+		case <-store.raftnode.stoppedc:
+			store.cfg.log.Info("Stopped state")
+			errchan <- nil
+			return
+		}
 	}
+}
+
+func (store *stateStore) sendPing() error {
+	timestamp := time.Now().UTC().UnixNano()
+	creq := &pb.ChangeRequest{
+		Ctype: pb.ChangeRequest_PING.Enum(),
+		Pingmsg: &pb.PingMessage{
+			Pingnode:     &store.NodeID,
+			Timestamp:    &timestamp,
+			AppliedIndex: &store.raftnode.appliedIndex,
+		},
+	}
+	out, err := proto.Marshal(creq)
+	if err != nil {
+		return errors.Wrap(err, "Error marshalling ping")
+	}
+	store.proposeC <- out
+	return nil
 }
 
 func (store *stateStore) announceConfChange(req raftpb.ConfChange) {
@@ -494,6 +526,12 @@ func (store *stateStore) readCommits() {
 			store.cfg.log.Debugf("Push request received to %s", r.GetReponame())
 			store.processPush(r)
 			store.announceRepoChanges(r.GetReponame(), req)
+
+		case pb.ChangeRequest_PING:
+			r := req.GetPingmsg()
+
+			store.cfg.log.Debugf("Ping received from node %d at time %d", r.GetPingnode(), r.GetTimestamp())
+			store.peerPings[r.GetPingnode()] = *r
 
 		default:
 			store.cfg.log.Error("Unknown ChangeRequest request received")
