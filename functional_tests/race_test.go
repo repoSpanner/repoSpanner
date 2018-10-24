@@ -7,9 +7,9 @@ import (
 	"testing"
 )
 
-const numRaceRepos = 100
-const numRaceBranches = 100
-const numRaceCommits = 100
+const numRaceRepos = 20
+const numRaceBranches = 20
+const numRaceCommits = 20
 
 type fail struct {
 	format string
