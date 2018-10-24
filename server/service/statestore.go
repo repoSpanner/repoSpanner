@@ -530,7 +530,6 @@ func (store *stateStore) readCommits() {
 		case pb.ChangeRequest_PING:
 			r := req.GetPingmsg()
 
-			store.cfg.log.Debugf("Ping received from node %d at time %d", r.GetPingnode(), r.GetTimestamp())
 			store.peerPings[r.GetPingnode()] = *r
 
 		default:
