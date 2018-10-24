@@ -103,7 +103,7 @@ func killNode(t tester, nodenr nodeNrType) {
 	}
 	state.killed = true
 
-	t.Logf("Killing node %d", nodenr.Name())
+	t.Logf("Killing node %s", nodenr.Name())
 	state.process.Process.Signal(os.Interrupt)
 	state.process.Wait()
 	err := state.procout.Close()
@@ -247,7 +247,7 @@ func createSSHBridgeConfig(t tester, node nodeNrType, confpath string) {
 	err = ioutil.WriteFile(confpath, examplecfgB, 0644)
 	failIfErr(t, err, "writing bridge config file")
 
-	t.Logf("Bridge config for %s: %s: %s", node, confpath, examplecfg)
+	t.Logf("Bridge config for %d: %s: %s", node, confpath, examplecfg)
 }
 
 func cloneCmdSSH(t tester, node nodeNrType, reponame, username string) (cmd []string, envupdates []string) {
@@ -317,7 +317,7 @@ func _clone(t tester, method cloneMethod, node nodeNrType, reponame, username, o
 	} else if method == cloneMethodSSH {
 		cmd, envupdates = cloneCmdSSH(t, node, reponame, username)
 	} else {
-		t.Fatalf("Unknown clone method: %s", method)
+		t.Fatalf("Unknown clone method: %d", method)
 	}
 	cmd = append(cmd, ourdir)
 	if bare {
