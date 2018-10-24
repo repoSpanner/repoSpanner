@@ -80,11 +80,8 @@ type nodeState struct {
 
 type tester interface {
 	Name() string
-	Log(args ...interface{})
-	Error(args ...interface{})
 	Errorf(format string, args ...interface{})
 	Fatalf(format string, args ...interface{})
-	Fatal(args ...interface{})
 	Logf(format string, args ...interface{})
 }
 
@@ -101,12 +98,12 @@ func killNode(t tester, nodenr nodeNrType) {
 	state := nodes[nodenr]
 
 	if state.killed {
-		t.Log("Node pre-killed")
+		t.Logf("Node pre-killed")
 		return
 	}
 	state.killed = true
 
-	t.Log("Killing node ", nodenr.Name())
+	t.Logf("Killing node %d", nodenr.Name())
 	state.process.Process.Signal(os.Interrupt)
 	state.process.Wait()
 	err := state.procout.Close()
@@ -120,12 +117,12 @@ func killNode(t tester, nodenr nodeNrType) {
 	if err != nil {
 		t.Errorf("Error reading output: %s", err)
 	}
-	t.Log("Stderr: ", string(output))
+	t.Logf("Stderr: %s", string(output))
 
 	state.readout.Close()
 
 	if !strings.Contains(string(output), "Shutdown complete") {
-		t.Error("Node did not shut down cleanly")
+		t.Errorf("Node did not shut down cleanly")
 	}
 }
 
@@ -170,14 +167,14 @@ func _runRawCommand(t tester, binname, pwd string, envupdates []string, args ...
 	cmd.Dir = pwd
 	cmd.Env = append(os.Environ(), envupdates...)
 	out, err := cmd.CombinedOutput()
-	t.Log("Output to command: ", cmd.Path, cmd.Args, " was: ", string(out))
+	t.Logf("Output to command: %s %s was: %s", cmd.Path, cmd.Args, string(out))
 	return string(out), err
 }
 
 func runRawCommand(t tester, binname, pwd string, envupdates []string, args ...string) string {
 	out, err := _runRawCommand(t, binname, pwd, envupdates, args...)
 	if err != nil {
-		t.Fatal("Error running command")
+		t.Fatalf("Error running command")
 	}
 	return out
 }
@@ -185,11 +182,11 @@ func runRawCommand(t tester, binname, pwd string, envupdates []string, args ...s
 func runFailingRawCommand(t tester, binname, pwd string, envupdates []string, args ...string) string {
 	out, err := _runRawCommand(t, binname, pwd, envupdates, args...)
 	if err == nil {
-		t.Fatal("No error in expecting failing command")
+		t.Fatalf("No error in expecting failing command")
 	}
 	_, isexiterr := err.(*exec.ExitError)
 	if !isexiterr {
-		t.Fatal("Not exit error occured")
+		t.Fatalf("Not exit error occured")
 	}
 	return out
 }
@@ -250,7 +247,7 @@ func createSSHBridgeConfig(t tester, node nodeNrType, confpath string) {
 	err = ioutil.WriteFile(confpath, examplecfgB, 0644)
 	failIfErr(t, err, "writing bridge config file")
 
-	t.Log("Bridge config for", node, confpath, examplecfg)
+	t.Logf("Bridge config for %s: %s: %s", node, confpath, examplecfg)
 }
 
 func cloneCmdSSH(t tester, node nodeNrType, reponame, username string) (cmd []string, envupdates []string) {
@@ -320,7 +317,7 @@ func _clone(t tester, method cloneMethod, node nodeNrType, reponame, username, o
 	} else if method == cloneMethodSSH {
 		cmd, envupdates = cloneCmdSSH(t, node, reponame, username)
 	} else {
-		t.Fatal("Unknown clone method", method)
+		t.Fatalf("Unknown clone method: %s", method)
 	}
 	cmd = append(cmd, ourdir)
 	if bare {
@@ -354,7 +351,7 @@ func _runCommand(t tester, config string, args ...string) (string, error) {
 func runCommand(t tester, config string, args ...string) string {
 	out, err := _runCommand(t, config, args...)
 	if err != nil {
-		t.Fatal("Error running command")
+		t.Fatalf("Error running command")
 	}
 	return out
 }
@@ -362,11 +359,11 @@ func runCommand(t tester, config string, args ...string) string {
 func runFailingCommand(t tester, config string, args ...string) string {
 	out, err := _runCommand(t, config, args...)
 	if err == nil {
-		t.Fatal("No error in expecting failing command")
+		t.Fatalf("No error in expecting failing command")
 	}
 	_, isexiterr := err.(*exec.ExitError)
 	if !isexiterr {
-		t.Fatal("Not exit error occured")
+		t.Fatalf("Not exit error occured")
 	}
 	return out
 }
@@ -489,7 +486,7 @@ func spawnNode(t tester, nodenr nodeNrType) {
 }
 
 func startNode(t tester, node nodeNrType) {
-	t.Log("Starting node", node.Name())
+	t.Logf("Starting node %s", node.Name())
 
 	procout, err := os.Create(path.Join(testDir, node.Name()+"-output"))
 	if err != nil {
@@ -549,7 +546,7 @@ func createTestCA(t tester) {
 	out := runCommand(t, "ca", cmd...)
 
 	if !strings.Contains(out, "WEAK KEY GENERATION USED") {
-		t.Fatal("Weak key usage warning not printed")
+		t.Fatalf("Weak key usage warning not printed")
 	}
 
 	runCommand(t, "ca", "ca", "leaf",
@@ -579,7 +576,7 @@ func createTestConfig(t tester, node string, nodenr nodeNrType, extras ...string
 	}
 	if _, err := os.Stat(path.Join(testDir, node+"-config.yml")); !os.IsNotExist(err) {
 		// Don't recreate if another test specifically created this config
-		t.Log("Config for", node, "left in place")
+		t.Logf("Config for %s left in place", node)
 		return
 	}
 
@@ -673,7 +670,7 @@ func createTestConfig(t tester, node string, nodenr nodeNrType, extras ...string
 	)
 	failIfErr(t, err, "writing test config")
 
-	t.Log("Config for", node, examplecfg)
+	t.Logf("Config for %s: %s", node, examplecfg)
 }
 
 func killTestIfTooLong(t tester) {
@@ -686,7 +683,7 @@ func killTestIfTooLong(t tester) {
 	case <-timer.C:
 		// Took too long, let's cancel test
 		testCleanup(t)
-		t.Fatal(t.Name() + " test aborted after running for two minutes")
+		t.Fatalf("%s test aborted after running for two minutes", t.Name())
 	}
 }
 
