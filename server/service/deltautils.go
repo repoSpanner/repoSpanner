@@ -231,7 +231,7 @@ func memcpy(dst io.Writer, src []byte, srcbegin, len uint) error {
 		if n != int(end-start) {
 			return errors.Errorf("Not exactly %d bytes copied?", end-start)
 		}
-		read++
+		read += (end - start)
 	}
 	return nil
 }
