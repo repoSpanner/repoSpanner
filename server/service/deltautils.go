@@ -51,10 +51,10 @@ func processDeltas(reqlogger *logrus.Entry, deltaqueuesize int, deltasqueue *os.
 			n, err := deltasqueue.Seek(0, 0)
 			if err != nil {
 				// Seeking failed? Weird...
-				panic(err)
+				return errors.Wrap(err, "Seeking in deltaqueue failed")
 			}
 			if n != 0 {
-				panic("Seek did not go to start of file?")
+				return errors.New("Seek did not go to start of file?")
 			}
 
 			for {
