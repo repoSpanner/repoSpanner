@@ -650,19 +650,19 @@ func concatSlices(slices ...[]byte) (ret []byte) {
 
 func getPackHeader(r io.Reader) (version uint32, numobjects uint32, err error) {
 	rawhdr := make([]byte, 4)
-	if _, err = r.Read(rawhdr); err != nil {
-		return
+	if _, err = io.ReadFull(r, rawhdr); err != nil {
+		return 0, 0, errors.Wrap(err, "Error reading pack header")
 	}
 	if string(rawhdr) != "PACK" {
 		return 0, 0, errors.New("Non-PACK header received")
 	}
 	version, err = getNetworkByteOrderInt32(r)
 	if err != nil {
-		return
+		return 0, 0, errors.Wrap(err, "Error parsing pack version")
 	}
 	numobjects, err = getNetworkByteOrderInt32(r)
 	if err != nil {
-		return
+		return 0, 0, errors.Wrap(err, "Error parsing number of pack objects")
 	}
 	return
 }
