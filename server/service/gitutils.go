@@ -957,7 +957,7 @@ func memcpy(dst io.Writer, src []byte, srcbegin, len uint) error {
 func rebuildDelta(w io.Writer, delta io.Reader, deltasize uint, destobjsize uint, base io.Reader, basesize uint) error {
 	// We need random access in srcbuf.
 	srcbuf := make([]byte, basesize)
-	n, err := base.Read(srcbuf)
+	n, err := io.ReadFull(base, srcbuf)
 	if err != nil {
 		return err
 	}
