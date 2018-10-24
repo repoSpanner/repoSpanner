@@ -68,8 +68,11 @@ func runAdminNodeStatus(cmd *cobra.Command, args []string) {
 		&resp,
 	)
 	lastselfping := resp.PeerPings[resp.NodeID]
-	lastselfpingtime := time.Unix(0, *lastselfping.Timestamp)
-	timesinceping := time.Since(lastselfpingtime)
+	timesinceping := time.Duration(50 * time.Hour)
+	if lastselfping.Timestamp != nil {
+		lastselfpingtime := time.Unix(0, *lastselfping.Timestamp)
+		timesinceping = time.Since(lastselfpingtime)
+	}
 	if shouldExit {
 		exitStatus(timesinceping)
 		return

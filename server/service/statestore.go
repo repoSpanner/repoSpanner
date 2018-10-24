@@ -285,6 +285,10 @@ func (store *stateStore) RunStateStore(errchan chan<- error, startedC chan<- str
 			errchan <- errors.New("Not started within the expected time")
 		})
 	} else {
+		if err := store.sendPing(); err != nil {
+			errchan <- err
+			return
+		}
 		ticker := time.NewTicker(5 * time.Second)
 		pingchan = ticker.C
 	}
