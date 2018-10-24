@@ -24,7 +24,7 @@ var (
 	hookrunnerbinary string
 )
 
-func checkFileExist(t *testing.T, path string) {
+func checkFileExist(t tester, path string) {
 	_, err := os.Stat(path)
 	if os.IsNotExist(err) {
 		t.Fatalf("Binary %s did not exist", path)
@@ -32,7 +32,7 @@ func checkFileExist(t *testing.T, path string) {
 	failIfErr(t, err, "determining binary paths")
 }
 
-func setBinaryPaths(t *testing.T) {
+func setBinaryPaths(t tester) {
 	if binary != "" && bridgebinary != "" {
 		return
 	}
@@ -78,6 +78,16 @@ type nodeState struct {
 	killed  bool
 }
 
+type tester interface {
+	Name() string
+	Log(args ...interface{})
+	Error(args ...interface{})
+	Errorf(format string, args ...interface{})
+	Fatalf(format string, args ...interface{})
+	Fatal(args ...interface{})
+	Logf(format string, args ...interface{})
+}
+
 var (
 	testDir       string
 	cloneDir      string
@@ -87,7 +97,7 @@ var (
 	useBubbleWrap bool
 )
 
-func killNode(t *testing.T, nodenr nodeNrType) {
+func killNode(t tester, nodenr nodeNrType) {
 	state := nodes[nodenr]
 
 	if state.killed {
@@ -119,7 +129,7 @@ func killNode(t *testing.T, nodenr nodeNrType) {
 	}
 }
 
-func testCleanup(t *testing.T) {
+func testCleanup(t tester) {
 	for nodenr := range nodes {
 		killNode(t, nodenr)
 	}
@@ -139,7 +149,7 @@ func testCleanup(t *testing.T) {
 	useBubbleWrap = false
 }
 
-func _runRawCommand(t *testing.T, binname, pwd string, envupdates []string, args ...string) (string, error) {
+func _runRawCommand(t tester, binname, pwd string, envupdates []string, args ...string) (string, error) {
 	if envupdates == nil {
 		envupdates = make([]string, 0)
 	}
@@ -164,7 +174,7 @@ func _runRawCommand(t *testing.T, binname, pwd string, envupdates []string, args
 	return string(out), err
 }
 
-func runRawCommand(t *testing.T, binname, pwd string, envupdates []string, args ...string) string {
+func runRawCommand(t tester, binname, pwd string, envupdates []string, args ...string) string {
 	out, err := _runRawCommand(t, binname, pwd, envupdates, args...)
 	if err != nil {
 		t.Fatal("Error running command")
@@ -172,7 +182,7 @@ func runRawCommand(t *testing.T, binname, pwd string, envupdates []string, args 
 	return out
 }
 
-func runFailingRawCommand(t *testing.T, binname, pwd string, envupdates []string, args ...string) string {
+func runFailingRawCommand(t tester, binname, pwd string, envupdates []string, args ...string) string {
 	out, err := _runRawCommand(t, binname, pwd, envupdates, args...)
 	if err == nil {
 		t.Fatal("No error in expecting failing command")
@@ -204,7 +214,7 @@ func runForTestedCloneMethods(t *testing.T, m func(*testing.T, cloneMethod)) {
 	}
 }
 
-func createSSHBridgeConfig(t *testing.T, node nodeNrType, confpath string) {
+func createSSHBridgeConfig(t tester, node nodeNrType, confpath string) {
 	examplecfgB, err := ioutil.ReadFile("../bridge_config.json.example")
 	failIfErr(t, err, "reading example config")
 	examplecfg := string(examplecfgB)
@@ -243,7 +253,7 @@ func createSSHBridgeConfig(t *testing.T, node nodeNrType, confpath string) {
 	t.Log("Bridge config for", node, confpath, examplecfg)
 }
 
-func cloneCmdSSH(t *testing.T, node nodeNrType, reponame, username string) (cmd []string, envupdates []string) {
+func cloneCmdSSH(t tester, node nodeNrType, reponame, username string) (cmd []string, envupdates []string) {
 	cmd = []string{
 		"clone",
 		"ext::" + bridgebinary + " " + reponame,
@@ -252,7 +262,7 @@ func cloneCmdSSH(t *testing.T, node nodeNrType, reponame, username string) (cmd 
 	return
 }
 
-func cloneCmdHTTPS(t *testing.T, node nodeNrType, reponame, username string) (cmd []string, envupdates []string) {
+func cloneCmdHTTPS(t tester, node nodeNrType, reponame, username string) (cmd []string, envupdates []string) {
 	cmd = []string{
 		"clone",
 		fmt.Sprintf("%s/repo/%s.git",
@@ -284,19 +294,21 @@ func cloneCmdHTTPS(t *testing.T, node nodeNrType, reponame, username string) (cm
 	return
 }
 
-func clone(t *testing.T, method cloneMethod, node nodeNrType, reponame, username string, expectSuccess bool) string {
+func clone(t tester, method cloneMethod, node nodeNrType, reponame, username string, expectSuccess bool) string {
 	return _clone(t, method, node, reponame, username, "", expectSuccess, false)
 }
 
-func cloneBare(t *testing.T, method cloneMethod, node nodeNrType, reponame, username string, expectSuccess bool) string {
+func cloneBare(t tester, method cloneMethod, node nodeNrType, reponame, username string, expectSuccess bool) string {
 	return _clone(t, method, node, reponame, username, "", expectSuccess, true)
 }
 
-func _clone(t *testing.T, method cloneMethod, node nodeNrType, reponame, username, ourdir string, expectSuccess bool, bare bool) string {
+func _clone(t tester, method cloneMethod, node nodeNrType, reponame, username, ourdir string, expectSuccess bool, bare bool) string {
 	if ourdir == "" {
 		tempdir, err := ioutil.TempDir(cloneDir, fmt.Sprintf("clone_%s_%s_", reponame, username))
 		failIfErr(t, err, "creating clone directory")
 		ourdir = tempdir
+	} else {
+		os.Mkdir(ourdir, 0750)
 	}
 
 	createSSHBridgeConfig(t, node, ourdir+".json")
@@ -329,7 +341,7 @@ func _clone(t *testing.T, method cloneMethod, node nodeNrType, reponame, usernam
 	return ourdir
 }
 
-func _runCommand(t *testing.T, config string, args ...string) (string, error) {
+func _runCommand(t tester, config string, args ...string) (string, error) {
 	cargs := make([]string, len(args)+2)
 	cargs[0] = "--config"
 	cargs[1] = path.Join(testDir, config+"-config.yml")
@@ -339,7 +351,7 @@ func _runCommand(t *testing.T, config string, args ...string) (string, error) {
 	return _runRawCommand(t, binary, "", nil, cargs...)
 }
 
-func runCommand(t *testing.T, config string, args ...string) string {
+func runCommand(t tester, config string, args ...string) string {
 	out, err := _runCommand(t, config, args...)
 	if err != nil {
 		t.Fatal("Error running command")
@@ -347,7 +359,7 @@ func runCommand(t *testing.T, config string, args ...string) string {
 	return out
 }
 
-func runFailingCommand(t *testing.T, config string, args ...string) string {
+func runFailingCommand(t tester, config string, args ...string) string {
 	out, err := _runCommand(t, config, args...)
 	if err == nil {
 		t.Fatal("No error in expecting failing command")
@@ -359,7 +371,7 @@ func runFailingCommand(t *testing.T, config string, args ...string) string {
 	return out
 }
 
-func waitForNodeStart(t *testing.T, node nodeNrType, readout io.Reader) {
+func waitForNodeStart(t tester, node nodeNrType, readout io.Reader) {
 	started := make(chan struct{})
 	ticker := time.NewTicker(5 * time.Second)
 
@@ -436,7 +448,7 @@ func (n nodeNrType) RPCBase() string {
 	)
 }
 
-func createRepo(t *testing.T, node nodeNrType, reponame string, public bool) {
+func createRepo(t tester, node nodeNrType, reponame string, public bool) {
 	if public {
 		runCommand(t, node.Name(),
 			"admin", "repo", "create", reponame, "--public")
@@ -450,7 +462,7 @@ func createRepo(t *testing.T, node nodeNrType, reponame string, public bool) {
 	)
 }
 
-func createNodes(t *testing.T, nodes ...nodeNrType) {
+func createNodes(t tester, nodes ...nodeNrType) {
 	spawned := false
 	var lastnode nodeNrType
 	for _, node := range nodes {
@@ -464,19 +476,19 @@ func createNodes(t *testing.T, nodes ...nodeNrType) {
 	}
 }
 
-func joinNode(t *testing.T, newnodenr nodeNrType, joiningnode nodeNrType) {
+func joinNode(t tester, newnodenr nodeNrType, joiningnode nodeNrType) {
 	createNodeCert(t, newnodenr)
 	runCommand(t, newnodenr.Name(), "serve", "--joinnode", joiningnode.RPCBase())
 	startNode(t, newnodenr)
 }
 
-func spawnNode(t *testing.T, nodenr nodeNrType) {
+func spawnNode(t tester, nodenr nodeNrType) {
 	createNodeCert(t, nodenr)
 	runCommand(t, nodenr.Name(), "serve", "--spawn")
 	startNode(t, nodenr)
 }
 
-func startNode(t *testing.T, node nodeNrType) {
+func startNode(t tester, node nodeNrType) {
 	t.Log("Starting node", node.Name())
 
 	procout, err := os.Create(path.Join(testDir, node.Name()+"-output"))
@@ -514,7 +526,7 @@ func startNode(t *testing.T, node nodeNrType) {
 	waitForNodeStart(t, node, readout)
 }
 
-func createNodeCert(t *testing.T, node nodeNrType) {
+func createNodeCert(t tester, node nodeNrType) {
 	createTestCA(t)
 	createTestConfig(t, node.Name(), node)
 	runCommand(t, "ca",
@@ -523,7 +535,7 @@ func createNodeCert(t *testing.T, node nodeNrType) {
 	)
 }
 
-func createTestCA(t *testing.T) {
+func createTestCA(t tester) {
 	if builtCa {
 		return
 	}
@@ -561,7 +573,7 @@ func createTestCA(t *testing.T) {
 	builtCa = true
 }
 
-func createTestConfig(t *testing.T, node string, nodenr nodeNrType, extras ...string) {
+func createTestConfig(t tester, node string, nodenr nodeNrType, extras ...string) {
 	if testDir == "" {
 		createTestDirectory(t)
 	}
@@ -664,7 +676,7 @@ func createTestConfig(t *testing.T, node string, nodenr nodeNrType, extras ...st
 	t.Log("Config for", node, examplecfg)
 }
 
-func killTestIfTooLong(t *testing.T) {
+func killTestIfTooLong(t tester) {
 	timer := time.NewTicker(2 * time.Minute)
 
 	select {
@@ -678,7 +690,7 @@ func killTestIfTooLong(t *testing.T) {
 	}
 }
 
-func createTestDirectory(t *testing.T) {
+func createTestDirectory(t tester) {
 	setBinaryPaths(t)
 
 	go killTestIfTooLong(t)
@@ -694,13 +706,13 @@ func createTestDirectory(t *testing.T) {
 	failIfErr(t, err, "writing testname")
 }
 
-func failIfErr(t *testing.T, err error, doing string) {
+func failIfErr(t tester, err error, doing string) {
 	if err != nil {
 		t.Fatalf("Error while %s: %s", doing, err)
 	}
 }
 
-func getBlobRepo(t *testing.T, workdir, issuenr string) {
+func getBlobRepo(t tester, workdir, issuenr string) {
 	issuedir, err := filepath.Abs(path.Join("blobs", "issue-"+issuenr))
 	failIfErr(t, err, "getting absolute issuepath")
 	files, err := ioutil.ReadDir(issuedir)
