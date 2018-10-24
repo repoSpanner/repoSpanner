@@ -101,11 +101,9 @@ func writeTestFiles(t tester, wdir string, start, stop int) {
 	if inRange(start, stop, 4) {
 		writeTestFile(t, wdir, "testfile4", body4, false)
 	}
-	if stop >= 5 {
-		for i := start; i <= stop; i++ {
-			j := strconv.Itoa(i)
-			writeTestFile(t, wdir, "testfile-auto"+j, "testcontent"+j, false)
-		}
+	for i := start; i <= stop; i++ {
+		j := strconv.Itoa(i)
+		writeTestFile(t, wdir, "testfile-auto"+j, "testcontent"+j, i%2 == 0)
 	}
 
 	runRawCommand(t, "git", wdir, nil, "add", ".")
@@ -141,11 +139,9 @@ func testFiles(t tester, wdir string, start, stop int) {
 	if inRange(start, stop, 4) {
 		testFile(t, wdir, "testfile4", body4, false)
 	}
-	if start >= 5 {
-		for i := start; i <= stop; i++ {
-			j := strconv.Itoa(i)
-			testFile(t, wdir, "testfile-auto"+j, "testcontent"+j, false)
-		}
+	for i := start; i <= stop; i++ {
+		j := strconv.Itoa(i)
+		testFile(t, wdir, "testfile-auto"+j, "testcontent"+j, i%2 == 0)
 	}
 }
 
