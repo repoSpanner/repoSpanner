@@ -101,7 +101,7 @@ func writeTestFiles(t tester, wdir string, start, stop int) {
 	if inRange(start, stop, 4) {
 		writeTestFile(t, wdir, "testfile4", body4, false)
 	}
-	if start >= 5 {
+	if stop >= 5 {
 		for i := start; i <= stop; i++ {
 			j := strconv.Itoa(i)
 			writeTestFile(t, wdir, "testfile-auto"+j, "testcontent"+j, false)
