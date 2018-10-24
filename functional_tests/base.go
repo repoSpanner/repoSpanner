@@ -160,7 +160,7 @@ func _runRawCommand(t *testing.T, binname, pwd string, envupdates []string, args
 	cmd.Dir = pwd
 	cmd.Env = append(os.Environ(), envupdates...)
 	out, err := cmd.CombinedOutput()
-	t.Log("Output to command: ", cmd, " was: ", string(out))
+	t.Log("Output to command: ", cmd.Path, cmd.Args, " was: ", string(out))
 	return string(out), err
 }
 
