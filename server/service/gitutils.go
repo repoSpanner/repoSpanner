@@ -669,7 +669,7 @@ func getPackHeader(r io.Reader) (version uint32, numobjects uint32, err error) {
 
 func getNetworkByteOrderInt32(r io.Reader) (uint32, error) {
 	buf := make([]byte, 4)
-	if _, err := r.Read(buf); err != nil {
+	if _, err := io.ReadFull(r, buf); err != nil {
 		return 0, err
 	}
 	return binary.BigEndian.Uint32(buf), nil
