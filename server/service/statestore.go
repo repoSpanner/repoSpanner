@@ -286,7 +286,7 @@ func (store *stateStore) RunStateStore(errchan chan<- error, startedC chan<- str
 		})
 	} else {
 		timer := time.NewTicker(5 * time.Second)
-		pingchan = timer.C
+		//pingchan = timer.C
 	}
 	for {
 		select {
