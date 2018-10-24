@@ -761,26 +761,6 @@ type resolveInfo struct {
 	baseobj  storage.ObjectID
 }
 
-func readN(r io.Reader, n int) (read int, toret []byte, err error) {
-	for {
-		if len(toret) == n {
-			return
-		}
-		if len(toret) > n {
-			err = errors.New("readN read too much?")
-			return
-		}
-		buf := make([]byte, 1)
-		var in int
-		in, err = r.Read(buf)
-		if err != nil {
-			return
-		}
-		read += in
-		toret = append(toret, buf[0])
-	}
-}
-
 func getSingleObjectFromPack(r io.Reader, s storage.ProjectStoragePushDriver) (storage.ObjectID, storage.ObjectType, resolveInfo, error) {
 	var toresolve resolveInfo
 
@@ -790,12 +770,9 @@ func getSingleObjectFromPack(r io.Reader, s storage.ProjectStoragePushDriver) (s
 	}
 
 	if objtype == storage.ObjectTypeRefDelta {
-		n, buf, err := readN(r, 20)
-		if err != nil {
+		buf := make([]byte, 20)
+		if _, err := io.ReadFull(r, buf); err != nil {
 			return storage.ZeroID, 0, toresolve, err
-		}
-		if n != 20 {
-			return storage.ZeroID, 0, toresolve, errors.New("Incorrect amount of base oid read")
 		}
 		toresolve.baseobj = storage.ObjectIDFromRaw(buf)
 	}
@@ -959,13 +936,18 @@ func getSizeFromDeltaHeader(r io.Reader) (objsize uint, bytesread uint, err erro
 func memcpy(dst io.Writer, src []byte, srcbegin, len uint) error {
 	var read uint
 	for read < len {
-		bt := src[srcbegin+read]
-		n, err := dst.Write([]byte{bt})
+		start := srcbegin + read
+		end := srcbegin + read + 1024
+		if end > srcbegin+len {
+			end = srcbegin + len
+		}
+		buf := src[start:end]
+		n, err := dst.Write(buf)
 		if err != nil {
 			return err
 		}
-		if n != 1 {
-			return errors.New("Not exactly 1 byte copied?")
+		if n != int(end-start) {
+			return errors.Errorf("Not exactly %d bytes copied?", end-start)
 		}
 		read++
 	}
@@ -1075,20 +1057,12 @@ func rebuildDelta(w io.Writer, delta io.Reader, deltasize uint, destobjsize uint
 			// Grab <cmd> bytes from base to delta
 			ncmd := int(cmd)
 			buf := make([]byte, ncmd)
-			read := 0
-			for read < ncmd {
-				n, err := data.Read(buf[read:])
-				if err != nil {
-					return err
-				}
-				read += n
-			}
-			if read != ncmd {
-				return errors.New("Incorrect number of bytes read")
+			if _, err := io.ReadFull(data, buf); err != nil {
+				return err
 			}
 			n, err := w.Write(buf)
 			if err != nil {
-				return err
+				return errors.Wrap(err, "Error writing into delta dest")
 			}
 			if n != ncmd {
 				return errors.New("Incorrect number of bytes written")
