@@ -111,7 +111,7 @@ func writeTestFiles(t tester, wdir string, start, stop int) {
 	runRawCommand(t, "git", wdir, nil, "add", ".")
 }
 
-func testFile(t *testing.T, wdir, name, body string, intestdir bool) {
+func testFile(t tester, wdir, name, body string, intestdir bool) {
 	var fname string
 	if intestdir {
 		fname = path.Join(wdir, "testdir", name)
@@ -128,7 +128,7 @@ func testFile(t *testing.T, wdir, name, body string, intestdir bool) {
 	}
 }
 
-func testFiles(t *testing.T, wdir string, start, stop int) {
+func testFiles(t tester, wdir string, start, stop int) {
 	if inRange(start, stop, 1) {
 		testFile(t, wdir, "testfile1", body1, true)
 	}
