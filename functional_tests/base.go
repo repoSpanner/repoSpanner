@@ -92,6 +92,7 @@ var (
 	nodes         = make(map[nodeNrType]*nodeState)
 	doneC         = make(chan struct{})
 	useBubbleWrap bool
+	ticker        *time.Ticker
 )
 
 func killNode(t tester, nodenr nodeNrType) {
@@ -207,7 +208,9 @@ var (
 
 func runForTestedCloneMethods(t *testing.T, m func(*testing.T, cloneMethod)) {
 	for _, method := range testedCloneMethods {
+		createTestDirectory(t)
 		m(t, method)
+		testCleanup(t)
 	}
 }
 
@@ -370,7 +373,7 @@ func runFailingCommand(t tester, config string, args ...string) string {
 
 func waitForNodeStart(t tester, node nodeNrType, readout io.Reader) {
 	started := make(chan struct{})
-	ticker := time.NewTicker(5 * time.Second)
+	startTimer := time.NewTimer(5 * time.Second)
 
 	go func() {
 		buffer := make([]byte, 0)
@@ -405,7 +408,7 @@ func waitForNodeStart(t tester, node nodeNrType, readout io.Reader) {
 			if !open {
 				return
 			}
-		case <-ticker.C:
+		case <-startTimer.C:
 			t.Fatalf("Node %s did not start after 5 seconds", node.Name())
 		}
 	}
@@ -674,13 +677,13 @@ func createTestConfig(t tester, node string, nodenr nodeNrType, extras ...string
 }
 
 func killTestIfTooLong(t tester) {
-	timer := time.NewTicker(2 * time.Minute)
+	ticker = time.NewTicker(2 * time.Minute)
 
 	select {
 	case <-doneC:
-		timer.Stop()
+		ticker.Stop()
 
-	case <-timer.C:
+	case <-ticker.C:
 		// Took too long, let's cancel test
 		testCleanup(t)
 		t.Fatalf("%s test aborted after running for two minutes", t.Name())
