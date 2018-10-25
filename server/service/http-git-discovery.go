@@ -50,6 +50,7 @@ func (cfg *Service) serveGitDiscovery(w http.ResponseWriter, r *http.Request, pe
 		symrefs := cfg.statestore.getSymRefs(reponame)
 
 		if fakerefs {
+			cfg.statestore.mux.RLock()
 			frefs, hasfrefs := cfg.statestore.fakerefs[reponame]
 			if hasfrefs {
 				realrefs := refs
@@ -61,6 +62,7 @@ func (cfg *Service) serveGitDiscovery(w http.ResponseWriter, r *http.Request, pe
 					refs[refname] = refval
 				}
 			}
+			cfg.statestore.mux.RUnlock()
 		}
 
 		if len(refs) == 0 {
