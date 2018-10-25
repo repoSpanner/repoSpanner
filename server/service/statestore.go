@@ -743,13 +743,11 @@ func (store *stateStore) performPush(req *pb.PushRequest) PushResult {
 				if req.UUID() == pushresp.UUID() || req.Equals(pushresp) {
 					// Done!
 					return result
-				} else {
-					if req.Conflicts(pushresp) {
-						result.logerror = errors.New("Conflicting push occured")
-						result.clienterror = errors.New("Conflicting push occured")
-						result.success = false
-						return result
-					}
+				} else if req.Conflicts(pushresp) {
+					result.logerror = errors.New("Conflicting push occured")
+					result.clienterror = errors.New("Conflicting push occured")
+					result.success = false
+					return result
 				}
 			case <-retryTimer.C:
 				if retryCount >= maxRetries {
@@ -757,9 +755,9 @@ func (store *stateStore) performPush(req *pb.PushRequest) PushResult {
 					result.clienterror = errors.New("Timeout while rolling out")
 					result.logerror = errors.New("Timeout occured while syncing to cluster")
 					return result
-				} else {
-					retryCount++
 				}
+
+				retryCount++
 			}
 		}
 	}
