@@ -209,7 +209,7 @@ const (
 
 var (
 	testedCloneMethods = []cloneMethod{
-		//cloneMethodHTTPS,
+		cloneMethodHTTPS,
 		cloneMethodSSH,
 	}
 )
