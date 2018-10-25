@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -93,6 +94,7 @@ var (
 	doneC         = make(chan struct{})
 	useBubbleWrap bool
 	ticker        *time.Ticker
+	cleanlock     sync.Locker
 )
 
 func killNode(t tester, nodenr nodeNrType) {
@@ -128,6 +130,9 @@ func killNode(t tester, nodenr nodeNrType) {
 }
 
 func testCleanup(t tester) {
+	cleanlock.Lock()
+	defer cleanlock.Unlock()
+
 	for nodenr := range nodes {
 		killNode(t, nodenr)
 	}
@@ -137,7 +142,10 @@ func testCleanup(t tester) {
 	}
 
 	// Reset test environ
-	close(doneC)
+	if doneC != nil {
+		close(doneC)
+		doneC = nil
+	}
 	doneC = make(chan struct{})
 
 	testDir = ""
@@ -692,6 +700,9 @@ func killTestIfTooLong(t tester) {
 }
 
 func createTestDirectory(t tester) {
+	cleanlock.Lock()
+	defer cleanlock.Unlock()
+
 	setBinaryPaths(t)
 
 	go killTestIfTooLong(t)
