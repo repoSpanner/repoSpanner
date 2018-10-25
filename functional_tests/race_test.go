@@ -1,3 +1,5 @@
+// +build stress
+
 package functional_tests
 
 import (
@@ -50,7 +52,7 @@ func (t *goRoutineTester) resolveFails() {
 	}
 }
 
-func TestRace(t *testing.T) {
+func TestStress(t *testing.T) {
 	defer testCleanup(t)
 	nodea := nodeNrType(1)
 	nodeb := nodeNrType(2)
