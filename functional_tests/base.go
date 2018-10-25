@@ -94,7 +94,7 @@ var (
 	doneC         = make(chan struct{})
 	useBubbleWrap bool
 	ticker        *time.Ticker
-	cleanlock     sync.Locker
+	cleanlock     sync.Mutex
 )
 
 func killNode(t tester, nodenr nodeNrType) {
