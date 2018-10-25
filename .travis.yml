@@ -16,6 +16,7 @@ matrix:
     - env: EXTRATAGS=stress
   allow_failures:
     - env: EXTRATAGS=stress
+    - go: master
 go_import_path: repospanner.org/repospanner
 # In no way would I suggest doing curl | sh normally.... But it's not my environment
 install:
