@@ -756,6 +756,7 @@ func (store *stateStore) performPush(req *pb.PushRequest) PushResult {
 					result.success = false
 					result.clienterror = errors.New("Timeout while rolling out")
 					result.logerror = errors.New("Timeout occured while syncing to cluster")
+					return result
 				} else {
 					retryCount++
 				}
