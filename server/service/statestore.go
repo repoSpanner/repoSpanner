@@ -408,11 +408,20 @@ func (store *stateStore) unsubscribeRepoChangeRequest(repo string, crC chan *pb.
 			if listener == crC {
 				close(crC)
 				index = i
+
+				go func(c chan *pb.ChangeRequest) {
+					// Make sure everything from this channel gets consumed
+					for range c {
+					}
+				}(crC)
 			}
 		}
 		if index != -1 {
 			// This was a known listener
-			store.repoChangeListeners[repo] = append(listeners[:index], listeners[index+1:]...)
+			store.repoChangeListeners[repo] = append(
+				listeners[:index],
+				listeners[index+1:]...,
+			)
 		} else {
 			store.cfg.log.Error("Invalid repochangelistener removal")
 		}
@@ -723,7 +732,6 @@ func (store *stateStore) performPush(req *pb.PushRequest) PushResult {
 			select {
 			case msg := <-crC:
 				pushresp := msg.GetPushreq()
-				fmt.Println("Pushresp gotten: ", pushresp)
 				if pushresp == nil {
 					// Something changed other than a push.....
 					result.logerror = errors.New("Non-push response received")
