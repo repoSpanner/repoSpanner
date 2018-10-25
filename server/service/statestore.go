@@ -736,11 +736,12 @@ func (store *stateStore) performPush(req *pb.PushRequest) PushResult {
 					// Done!
 					return result
 				} else {
-					// TODO: Determine whether this was a breaking change
-					result.logerror = errors.New("Conflicting push occured")
-					result.clienterror = errors.New("Conflicting push occured")
-					result.success = false
-					return result
+					if req.Conflicts(pushresp) {
+						result.logerror = errors.New("Conflicting push occured")
+						result.clienterror = errors.New("Conflicting push occured")
+						result.success = false
+						return result
+					}
 				}
 			case <-retryTimer.C:
 				if retryCount >= maxRetries {

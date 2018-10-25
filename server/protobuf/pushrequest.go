@@ -67,6 +67,23 @@ func (p *PushRequest) ExpectPackFile() bool {
 	return false
 }
 
+func (p *PushRequest) Conflicts(o *PushRequest) bool {
+	anyoverlap := false
+	for _, received := range p.Requests {
+		for _, submitted := range o.Requests {
+			if submitted.GetRef() != received.GetRef() {
+				continue
+			}
+			if submitted.GetTo() == received.GetTo() {
+				// If the target is the same, somehow, that's fine
+				continue
+			}
+			anyoverlap = true
+		}
+	}
+	return anyoverlap
+}
+
 func (p *PushRequest) Equals(o *PushRequest) bool {
 	if p == nil && o == nil {
 		return true
