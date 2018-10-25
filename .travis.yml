@@ -5,10 +5,17 @@ git:
   # We need the full repo for the metatest
   depth: false
 go:
-- "1.9"
-- "1.10"
-- "1.11"
-- master
+  - "1.9"
+  - "1.10"
+  - "1.11"
+  - master
+env: []
+matrix:
+  fast_finish: true
+  include:
+    - env: EXTRATAGS=stress
+  allow_failures:
+    - env: EXTRATAGS=stress
 go_import_path: repospanner.org/repospanner
 # In no way would I suggest doing curl | sh normally.... But it's not my environment
 install:
@@ -19,7 +26,7 @@ script:
 - dep ensure
 - ./build.sh
 - go vet ./...
-- go test ./...
+- go test ./... -taggs ${EXTRATAGS}
 cache:
   directories:
   - vendor
