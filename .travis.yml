@@ -27,7 +27,7 @@ script:
 - dep ensure
 - ./build.sh
 - go vet ./...
-- go test ./... -tags ${EXTRATAGS:-plain}
+- go test ./... -tags ${EXTRATAGS:-plain} -timeout 9m
 cache:
   directories:
   - vendor
