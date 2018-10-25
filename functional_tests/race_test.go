@@ -10,8 +10,8 @@ import (
 )
 
 const numRaceRepos = 5
-const numRaceBranches = 5
-const numRaceCommits = 5
+const numRaceBranches = 10
+const numRaceCommits = 50
 
 type fail struct {
 	format string
@@ -59,6 +59,9 @@ func TestStress(t *testing.T) {
 	nodec := nodeNrType(3)
 	createNodes(t, nodea, nodeb, nodec)
 	nodes := []nodeNrType{nodea, nodeb, nodec}
+
+	// In this test, we depend on the Go timeout rather than our own
+	ticker.Stop()
 
 	tester := createGoroutineTester(t)
 
