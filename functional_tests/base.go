@@ -478,13 +478,13 @@ func createNodes(t tester, nodes ...nodeNrType) {
 
 func joinNode(t tester, newnodenr nodeNrType, joiningnode nodeNrType) {
 	createNodeCert(t, newnodenr)
-	runCommand(t, newnodenr.Name(), "serve", "--joinnode", joiningnode.RPCBase())
+	runCommand(t, newnodenr.Name(), "serve", "--debug", "--joinnode", joiningnode.RPCBase())
 	startNode(t, newnodenr)
 }
 
 func spawnNode(t tester, nodenr nodeNrType) {
 	createNodeCert(t, nodenr)
-	runCommand(t, nodenr.Name(), "serve", "--spawn")
+	runCommand(t, nodenr.Name(), "serve", "--debug", "--spawn")
 	startNode(t, nodenr)
 }
 
@@ -508,6 +508,7 @@ func startNode(t tester, node nodeNrType) {
 		"--config",
 		path.Join(testDir, node.Name()+"-config.yml"),
 		"serve",
+		"--debug",
 	)
 	// These are different from the state objects so we can seek without messing up
 	// the process channels
