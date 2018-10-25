@@ -109,7 +109,7 @@ func (cfg *Service) serveGitReceivePack(w http.ResponseWriter, r *http.Request, 
 			return
 		}
 		defer deltasqueue.Close()
-		defer os.Remove(deltasqueue.Name())
+		os.Remove(deltasqueue.Name())
 		var deltaqueuesize int
 
 		var gotObjects uint32

@@ -84,7 +84,7 @@ func processDeltas(reqlogger *logrus.Entry, deltaqueuesize int, deltasqueue *os.
 			return errors.Wrap(err, "Error creating new delta queue")
 		}
 		defer newdeltasqueue.Close()
-		defer os.Remove(newdeltasqueue.Name())
+		os.Remove(newdeltasqueue.Name())
 
 		n, err := deltasqueue.Seek(0, 0)
 		if err != nil {
