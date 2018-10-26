@@ -21,10 +21,16 @@ func PublicVersionString() string {
 }
 
 func VersionString() string {
-	return fmt.Sprintf("%s running on %s/%s (compiled with %s)",
+	suffix := ""
+	if hasProfiling {
+		suffix = " WITH PROFILING"
+	}
+
+	return fmt.Sprintf("%s running on %s/%s (compiled with %s)%s",
 		PublicVersionString(),
 		runtime.GOOS,
 		runtime.GOARCH,
 		runtime.Version(),
+		suffix,
 	)
 }

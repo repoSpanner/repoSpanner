@@ -12,19 +12,19 @@ export GITDESCRIP="`git describe --long --tags --dirty --always`"
     go build -ldflags \
         "-X repospanner.org/repospanner/server/constants.version=$VERSION
         -X repospanner.org/repospanner/server/constants.gitdescrip=$GITDESCRIP" \
-        -o ../../repospanner
+        -o ../../repospanner $@
 )
 (
     cd cmd/repobridge/
     go build -ldflags \
         "-X repospanner.org/repospanner/server/constants.version=$VERSION
         -X repospanner.org/repospanner/server/constants.gitdescrip=$GITDESCRIP" \
-        -o ../../repobridge
+        -o ../../repobridge $@
 )
 (
     cd cmd/repohookrunner/
     go build -ldflags \
         "-X repospanner.org/repospanner/server/constants.version=$VERSION
         -X repospanner.org/repospanner/server/constants.gitdescrip=$GITDESCRIP" \
-        -o ../../repohookrunner
+        -o ../../repohookrunner $@
 )

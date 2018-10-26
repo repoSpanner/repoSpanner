@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-
+	"repospanner.org/repospanner/server/constants"
 	"repospanner.org/repospanner/server/service"
 )
 
@@ -20,6 +20,8 @@ var serveCmd = &cobra.Command{
 }
 
 func runServer(cmd *cobra.Command, args []string) {
+	constants.RunProfiling()
+
 	debug, _ := cmd.Flags().GetBool("debug")
 	spawning, _ := cmd.Flags().GetBool("spawn")
 	joinnode, _ := cmd.Flags().GetString("joinnode")
