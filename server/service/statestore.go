@@ -349,12 +349,20 @@ func (store *stateStore) subscribeConfChange() chan raftpb.ConfChange {
 }
 
 func (store *stateStore) unsubscribeConfChange(ccC chan raftpb.ConfChange) {
+	// Make sure that any further messages sent until the channel is closed gets
+	// tossed. Otherwise, we can block the announce
+	go func(c chan raftpb.ConfChange) {
+		for range c {
+		}
+	}(ccC)
+
 	store.confChangeListenersMux.Lock()
 	defer store.confChangeListenersMux.Unlock()
 
 	index := -1
 	for i, listener := range store.confChangeListeners {
 		if listener == ccC {
+			close(ccC)
 			index = i
 		}
 	}
@@ -398,6 +406,13 @@ func (store *stateStore) subscribeRepoChangeRequest(repo string) chan *pb.Change
 }
 
 func (store *stateStore) unsubscribeRepoChangeRequest(repo string, crC chan *pb.ChangeRequest) {
+	// Make sure that any further messages sent until the channel is closed gets
+	// tossed. Otherwise, we can block the announce
+	go func(c chan *pb.ChangeRequest) {
+		for range c {
+		}
+	}(crC)
+
 	store.repoChangeListenersMux.Lock()
 	defer store.repoChangeListenersMux.Unlock()
 
@@ -408,12 +423,6 @@ func (store *stateStore) unsubscribeRepoChangeRequest(repo string, crC chan *pb.
 			if listener == crC {
 				close(crC)
 				index = i
-
-				go func(c chan *pb.ChangeRequest) {
-					// Make sure everything from this channel gets consumed
-					for range c {
-					}
-				}(crC)
 			}
 		}
 		if index != -1 {
