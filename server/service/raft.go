@@ -12,14 +12,13 @@ import (
 	"github.com/coreos/etcd/etcdserver/stats"
 	"github.com/coreos/etcd/pkg/fileutil"
 	"github.com/coreos/etcd/pkg/types"
-	"github.com/coreos/etcd/wal/walpb"
-	"github.com/sirupsen/logrus"
-
 	"github.com/coreos/etcd/raft"
 	"github.com/coreos/etcd/raft/raftpb"
 	"github.com/coreos/etcd/rafthttp"
 	"github.com/coreos/etcd/snap"
 	"github.com/coreos/etcd/wal"
+	"github.com/coreos/etcd/wal/walpb"
+	"github.com/sirupsen/logrus"
 )
 
 type stateRaftNode struct {
@@ -412,7 +411,10 @@ func (rc *stateRaftNode) serveChannels() {
 					rc.proposeC = nil
 				} else {
 					// blocks until accepted by raft state machine
-					rc.node.Propose(context.TODO(), prop)
+					err := rc.node.Propose(context.TODO(), prop)
+					if err != nil {
+						rc.store.cfg.log.WithError(err).Error("Error proposing entry")
+					}
 				}
 
 			case cc, ok := <-rc.confChangeC:
