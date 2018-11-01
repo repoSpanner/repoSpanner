@@ -9,11 +9,10 @@ import (
 	"path"
 	"strings"
 
-	"repospanner.org/repospanner/server/storage"
-	"repospanner.org/repospanner/server/utils"
-
 	"github.com/sirupsen/logrus"
 	"repospanner.org/repospanner/server/constants"
+	"repospanner.org/repospanner/server/storage"
+	"repospanner.org/repospanner/server/utils"
 )
 
 func (cfg *Service) addSecurityHeaders(w http.ResponseWriter) {
@@ -203,6 +202,17 @@ func (cfg *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		reqlogger.Debug("Unknown command requested")
 		http.NotFound(w, r)
+		return
+	} else if pathparts[0] == "monitor" {
+		if !cfg.checkAccess(perminfo, "*", constants.CertPermissionMonitor) {
+			reqlogger.Info("Unauthorized admin request received")
+
+			w.WriteHeader(401)
+			w.Write([]byte("No authorized for monitor access\n"))
+			return
+		}
+
+		cfg.serveAdminNodeStatus(w, r)
 		return
 	} else if pathparts[0] == "admin" {
 		if !cfg.checkAccess(perminfo, "*", constants.CertPermissionAdmin) {

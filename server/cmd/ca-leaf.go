@@ -9,10 +9,9 @@ import (
 	"path"
 	"time"
 
-	"repospanner.org/repospanner/server/constants"
-
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"repospanner.org/repospanner/server/constants"
 )
 
 var caLeafCmd = &cobra.Command{
@@ -75,6 +74,10 @@ func runCaLeaf(cmd *cobra.Command, args []string) {
 	if err != nil {
 		panic(err)
 	}
+	monitor, err := cmd.Flags().GetBool("monitor")
+	if err != nil {
+		panic(err)
+	}
 	read, err := cmd.Flags().GetBool("read")
 	if err != nil {
 		panic(err)
@@ -85,6 +88,9 @@ func runCaLeaf(cmd *cobra.Command, args []string) {
 	}
 	if admin {
 		exts = append(exts, permissionExtension(constants.CertPermissionAdmin))
+	}
+	if monitor {
+		exts = append(exts, permissionExtension(constants.CertPermissionMonitor))
 	}
 	if read {
 		exts = append(exts, permissionExtension(constants.CertPermissionRead))
@@ -133,6 +139,7 @@ func init() {
 	caLeafCmd.MarkFlagRequired("repo")
 
 	caLeafCmd.Flags().Bool("admin", false, "Whether this certificate has admin privileges")
+	caLeafCmd.Flags().Bool("monitor", false, "Whether this certificate has monitor privileges")
 	caLeafCmd.Flags().Bool("read", false, "Whether this certificate has read privileges")
 	caLeafCmd.Flags().Bool("write", false, "Whether this certificate has write privileges")
 }

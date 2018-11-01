@@ -5,11 +5,12 @@ import "encoding/asn1"
 type CertPermission string
 
 var (
-	CertPermissionCA    CertPermission = "CA"
-	CertPermissionNode  CertPermission = "node"
-	CertPermissionAdmin CertPermission = "admin"
-	CertPermissionRead  CertPermission = "read"
-	CertPermissionWrite CertPermission = "write"
+	CertPermissionCA      CertPermission = "CA"
+	CertPermissionNode    CertPermission = "node"
+	CertPermissionAdmin   CertPermission = "admin"
+	CertPermissionMonitor CertPermission = "monitor"
+	CertPermissionRead    CertPermission = "read"
+	CertPermissionWrite   CertPermission = "write"
 )
 
 var (

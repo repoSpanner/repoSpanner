@@ -567,6 +567,11 @@ func createTestCA(t tester) {
 		insecureKeysFlag,
 	)
 	runCommand(t, "ca", "ca", "leaf",
+		"monitor", "--monitor",
+		"--repo", "*", "--region", "*",
+		insecureKeysFlag,
+	)
+	runCommand(t, "ca", "ca", "leaf",
 		"client", "--region", "*", "--repo", "*", "--read", "--write",
 		insecureKeysFlag,
 	)
