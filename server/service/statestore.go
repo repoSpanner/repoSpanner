@@ -312,7 +312,6 @@ func (store *stateStore) RunStateStore(errchan chan<- error, startedC chan<- str
 }
 
 func (store *stateStore) sendPing() error {
-	store.cfg.log.Debug("Sending ping")
 	timestamp := time.Now().UTC().UnixNano()
 	creq := &pb.ChangeRequest{
 		Ctype: pb.ChangeRequest_PING.Enum(),
@@ -556,12 +555,6 @@ func (store *stateStore) readCommits(initial bool) {
 		case pb.ChangeRequest_PING:
 			r := req.GetPingmsg()
 
-			store.cfg.log.Debugf(
-				"Received ping from node %d at time %d at index %d",
-				r.GetPingnode(),
-				r.GetTimestamp(),
-				r.GetAppliedIndex(),
-			)
 			store.peerPings[r.GetPingnode()] = *r
 
 		default:
