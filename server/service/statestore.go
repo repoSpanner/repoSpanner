@@ -270,9 +270,9 @@ func (store *stateStore) RunStateStore(errchan chan<- error, startedC chan<- str
 	store.cfg.log.Debug("Got snapshotter")
 	store.snapshotter = snapshotter
 	// Now replay the logs
-	store.readCommits()
+	store.readCommits(true)
 	store.cfg.log.Debug("WAL Replayed")
-	go store.readCommits()
+	go store.readCommits(false)
 	store.cfg.log.Debug("stateStore ready")
 	var pingchan <-chan time.Time
 	if store.stopOnFinish {
@@ -459,7 +459,7 @@ func (store *stateStore) applyUpdateRequest(reponame string, request datastructu
 
 var lastSnapshotApplied uint64
 
-func (store *stateStore) readCommits() {
+func (store *stateStore) readCommits(initial bool) {
 	for data := range store.commitC {
 		if data == nil {
 			// done replaying log; now data incoming
@@ -475,6 +475,9 @@ func (store *stateStore) readCommits() {
 			}
 			if snapshot.Metadata.Index <= lastSnapshotApplied {
 				store.cfg.log.Debugf("Skipping snapshot with index %d", snapshot.Metadata.Index)
+				if initial {
+					return
+				}
 				continue
 			}
 			store.cfg.log.Debugf("Loading snapshot with index %d", snapshot.Metadata.Index)
