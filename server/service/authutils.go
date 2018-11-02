@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"crypto/tls"
 	"path/filepath"
 	"strings"
@@ -71,7 +72,11 @@ func lineMatches(pattern, name string) bool {
 	return err == nil && matched
 }
 
-func (cfg *Service) checkAccess(i permissionInfo, repo string, action constants.CertPermission) bool {
+func (cfg *Service) checkAccess(ctx context.Context, repo string, action constants.CertPermission) bool {
+	i, ok := permFromCtx(ctx)
+	if !ok {
+		return false
+	}
 	hasRegionAccess, hasRepoAccess, hasAction := false, false, false
 
 	if strings.HasPrefix(repo, "admin/") {

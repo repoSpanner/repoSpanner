@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"compress/zlib"
+	"context"
 	"crypto/sha1"
 	"encoding/binary"
 	"fmt"
@@ -16,7 +17,6 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	"repospanner.org/repospanner/server/constants"
 	pb "repospanner.org/repospanner/server/protobuf"
 	"repospanner.org/repospanner/server/storage"
@@ -62,25 +62,8 @@ func (s sideBandStatus) String() string {
 	return "Invalid sideBandStatus"
 }
 
-func getSideBandStatus(capabs []string) (ret sideBandStatus, err error) {
-	for _, capab := range capabs {
-		if capab == "side-band-64k" {
-			if ret != sideBandStatusNot {
-				return sideBandStatusNot, errors.New("Multiple side-bands requested")
-			}
-			ret = sideBandStatusLarge
-		} else if capab == "side-band" {
-			if ret != sideBandStatusNot {
-				return sideBandStatusNot, errors.New("Multiple side-bands requested")
-			}
-			ret = sideBandStatusSmall
-		}
-	}
-
-	return
-}
-
-func sendSideBandFlushPacket(w io.Writer, sbstatus sideBandStatus, sb sideBand) error {
+func sendSideBandFlushPacket(ctx context.Context, w io.Writer, sb sideBand) error {
+	sbstatus := sbStatusFromCtx(ctx)
 	if sbstatus == sideBandStatusNot {
 		return sendFlushPacket(w)
 	}
@@ -88,7 +71,7 @@ func sendSideBandFlushPacket(w io.Writer, sbstatus sideBandStatus, sb sideBand) 
 	return err
 }
 
-func sendStatusPacket(w io.Writer, sbstatus sideBandStatus, packets ...string) error {
+func sendStatusPacket(ctx context.Context, w io.Writer, packets ...string) error {
 	// For some reason, the result packet is expected to be multiple packets inside a
 	// single sidebanded packet....
 	status := new(bytes.Buffer)
@@ -109,14 +92,16 @@ func sendStatusPacket(w io.Writer, sbstatus sideBandStatus, packets ...string) e
 	// First in-sideband flush....
 	status.Write([]byte{'0', '0', '0', '0'})
 
-	if err := sendSideBandPacket(w, sbstatus, sideBandData, status.Bytes()); err != nil {
+	if err := sendSideBandPacket(ctx, w, sideBandData, status.Bytes()); err != nil {
 		return err
 	}
 	// Then an out-of-sideband flush
 	return sendFlushPacket(w)
 }
 
-func sendSideBandPacket(w io.Writer, sbstatus sideBandStatus, sb sideBand, packet []byte) error {
+func sendSideBandPacket(ctx context.Context, w io.Writer, sb sideBand, packet []byte) error {
+	sbstatus := sbStatusFromCtx(ctx)
+
 	if sbstatus == sideBandStatusNot {
 		// We have no sideband, ignore anything except for sideband data
 		if sb == sideBandData {
@@ -149,16 +134,16 @@ func sendSideBandPacket(w io.Writer, sbstatus sideBandStatus, sb sideBand, packe
 	return nil
 }
 
-func (cfg *Service) debugPacket(w io.Writer, sbstatus sideBandStatus, msg string) {
+func (cfg *Service) debugPacket(ctx context.Context, w io.Writer, msg string) {
 	if cfg.Debug {
-		sendSideBandPacket(w, sbstatus, sideBandProgress, []byte(msg+"\n"))
+		sendSideBandPacket(ctx, w, sideBandProgress, []byte(msg+"\n"))
 	}
 }
 
-func (cfg *Service) maybeSayHello(w io.Writer, sbstatus sideBandStatus) {
+func (cfg *Service) maybeSayHello(ctx context.Context, w io.Writer) {
 	sendSideBandPacket(
+		ctx,
 		w,
-		sbstatus,
 		sideBandProgress,
 		[]byte(fmt.Sprintf(
 			"Welcome to repoSpanner %s, node %s.%s.%s\n",
@@ -171,13 +156,13 @@ func (cfg *Service) maybeSayHello(w io.Writer, sbstatus sideBandStatus) {
 }
 
 type sideBandSender struct {
-	w        io.Writer
-	sbstatus sideBandStatus
-	sb       sideBand
+	ctx context.Context
+	w   io.Writer
+	sb  sideBand
 }
 
 func (s sideBandSender) Write(packet []byte) (int, error) {
-	return len(packet), sendSideBandPacket(s.w, s.sbstatus, s.sb, packet)
+	return len(packet), sendSideBandPacket(s.ctx, s.w, s.sb, packet)
 }
 
 var extensions = []string{
@@ -220,7 +205,6 @@ func getPacketLen(packet []byte) ([]byte, error) {
 type wrappedResponseWriter struct {
 	writer      io.Writer
 	flusher     http.Flusher
-	closeC      <-chan bool
 	ishttp2     bool
 	isfullyread bool
 }
@@ -235,33 +219,15 @@ func (w *wrappedResponseWriter) Flush() {
 	}
 }
 
-func (w *wrappedResponseWriter) IsClosed() bool {
-	if w.closeC == nil {
-		return false
-	}
-	select {
-	case <-w.closeC:
-		return true
-	default:
-		return false
-	}
-}
-
 func newWrappedResponseWriter(inner io.Writer) *wrappedResponseWriter {
 	_, ishttp2 := inner.(http.Pusher)
 	flusher, hasflusher := inner.(http.Flusher)
 	if !hasflusher {
 		flusher = nil
 	}
-	var closeC <-chan bool
-	closer, hascloser := inner.(http.CloseNotifier)
-	if hascloser {
-		closeC = closer.CloseNotify()
-	}
 	return &wrappedResponseWriter{
 		writer:      inner,
 		flusher:     flusher,
-		closeC:      closeC,
 		ishttp2:     ishttp2,
 		isfullyread: false,
 	}
@@ -328,8 +294,8 @@ func readPacket(r io.Reader) ([]byte, error) {
 	return buff, nil
 }
 
-func sendUnpackFail(w io.Writer, hasStatus bool, sbstatus sideBandStatus, toupdate *pb.PushRequest) {
-	if !hasStatus {
+func sendUnpackFail(ctx context.Context, w io.Writer, toupdate *pb.PushRequest) {
+	if !hasCapab(ctx, "report-status") {
 		sendFlushPacket(w)
 		return
 	}
@@ -339,13 +305,13 @@ func sendUnpackFail(w io.Writer, hasStatus bool, sbstatus sideBandStatus, toupda
 		fails = append(fails, "ng "+req.GetRef()+" unpack-failure")
 	}
 	sendStatusPacket(
+		ctx,
 		w,
-		sbstatus,
 		fails...)
 }
 
-func sendPushResult(w io.Writer, hasStatus bool, sbstatus sideBandStatus, result PushResult) {
-	if !hasStatus {
+func sendPushResult(ctx context.Context, w io.Writer, result PushResult) {
+	if !hasCapab(ctx, "report-status") {
 		sendFlushPacket(w)
 		return
 	}
@@ -364,8 +330,8 @@ func sendPushResult(w io.Writer, hasStatus bool, sbstatus sideBandStatus, result
 		}
 	}
 	sendStatusPacket(
+		ctx,
 		w,
-		sbstatus,
 		msgs...)
 }
 
@@ -422,7 +388,9 @@ func isValidRefName(refname string) bool {
 	return true
 }
 
-func (cfg *Service) readDownloadPacketRequestHeader(r io.Reader, reqlogger *logrus.Entry, reponame string) (capabs []string, toupdate *pb.PushRequest, err error) {
+func (cfg *Service) readDownloadPacketRequestHeader(ctx context.Context, r io.Reader, reponame string) (capabs []string, toupdate *pb.PushRequest, err error) {
+	reqlogger := loggerFromCtx(ctx)
+
 	// Even though the documentation says we need to expect "commands", git does not
 	// actually seem to send those, and instead just sends <to> <from> <refname> lines
 	toupdate = pb.NewPushRequest(cfg.nodeid, reponame)
@@ -522,7 +490,7 @@ func wantIsReachableFromCommons(p storage.ProjectStorageDriver, want storage.Obj
 	return true, nil
 }
 
-func hasEnoughHaves(p storage.ProjectStorageDriver, reqlogger *logrus.Entry, wants []storage.ObjectID, common objectIDSearcher) (bool, objectIDSearcher, error) {
+func hasEnoughHaves(ctx context.Context, p storage.ProjectStorageDriver, wants []storage.ObjectID, common objectIDSearcher) (bool, objectIDSearcher, error) {
 	tosend := newObjectIDSearch()
 	for _, want := range wants {
 		wantIsReachable, err := wantIsReachableFromCommons(p, want, common, tosend)
@@ -536,7 +504,9 @@ func hasEnoughHaves(p storage.ProjectStorageDriver, reqlogger *logrus.Entry, wan
 	return true, tosend, nil
 }
 
-func readHavePacket(r io.Reader, reqlogger *logrus.Entry) (have storage.ObjectID, isdone, iseof bool, err error) {
+func readHavePacket(ctx context.Context, r io.Reader) (have storage.ObjectID, isdone, iseof bool, err error) {
+	reqlogger := loggerFromCtx(ctx)
+
 	have = storage.ZeroID
 
 	var pkt []byte
@@ -580,7 +550,9 @@ func readHavePacket(r io.Reader, reqlogger *logrus.Entry) (have storage.ObjectID
 	return
 }
 
-func readUploadPackRequest(r io.Reader, reqlogger *logrus.Entry) (capabs []string, wants []storage.ObjectID, err error) {
+func readUploadPackRequest(ctx context.Context, r io.Reader) (capabs []string, wants []storage.ObjectID, err error) {
+	reqlogger := loggerFromCtx(ctx)
+
 	hadcapabs := false
 
 	for {
@@ -680,7 +652,8 @@ func writeNetworkByteOrderInt32(n uint32) []byte {
 	return buf
 }
 
-func checksumsMatch(calculated, expected []byte, reqlogger *logrus.Entry) bool {
+func checksumsMatch(ctx context.Context, calculated, expected []byte) bool {
+	reqlogger := loggerFromCtx(ctx)
 	if len(calculated) != len(expected) {
 		return false
 	}
@@ -822,7 +795,11 @@ func getObjectIDFinish(hasher hash.Hash) storage.ObjectID {
 	return storage.ObjectIDFromRaw(hasher.Sum(nil))
 }
 
-func hasCapab(capabs []string, capab string) bool {
+func hasCapab(ctx context.Context, capab string) bool {
+	capabs, ok := capabsFromCtx(ctx)
+	if !ok {
+		return false
+	}
 	for _, s := range capabs {
 		if s == capab {
 			return true

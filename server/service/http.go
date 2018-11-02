@@ -29,33 +29,6 @@ func (cfg *Service) addSecurityHeaders(w http.ResponseWriter) {
 	w.Header()["X-Repospanner-NodeName"] = []string{cfg.nodename}
 }
 
-func (cfg *Service) prereq(w http.ResponseWriter, r *http.Request, server string) (*logrus.Entry, permissionInfo) {
-	cfg.addSecurityHeaders(w)
-
-	reqlogger := cfg.log.WithFields(logrus.Fields{
-		"server":   server,
-		"protocol": r.Proto,
-		"method":   r.Method,
-		"client":   r.RemoteAddr,
-		"url":      r.URL,
-	})
-	hdr, ok := r.Header["User-Agent"]
-	if ok && len(hdr) >= 1 {
-		reqlogger = reqlogger.WithField(
-			"useragent", hdr[0],
-		)
-	}
-	reqlogger = resolveCompression(r, reqlogger)
-
-	var perminfo permissionInfo
-	if r.TLS != nil {
-		perminfo = cfg.getPermissionInfo(r.TLS)
-		reqlogger = cfg.addPermToLogger(perminfo, reqlogger)
-	}
-
-	return reqlogger, perminfo
-}
-
 func findProjectAndOp(parts []string) (string, string) {
 	var reponame string
 	var command string
@@ -91,14 +64,9 @@ func resolveCompression(r *http.Request, reqlogger *logrus.Entry) *logrus.Entry 
 }
 
 func (cfg *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	reqlogger, perminfo := cfg.prereq(w, r, "gitservice")
-
-	repobridge := r.Header[http.CanonicalHeaderKey("X-RepoBridge-Version")]
-	if len(repobridge) != 0 {
-		reqlogger = reqlogger.WithField(
-			"RepoBridge-Version", repobridge,
-		)
-	}
+	ctx := cfg.ctxFromReq(w, r, "gitservice")
+	reqlogger := loggerFromCtx(ctx)
+	perminfo, _ := permFromCtx(ctx)
 
 	if r.TLS == nil {
 		reqlogger.Info("Non-TLS request received")
@@ -125,7 +93,7 @@ func (cfg *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		reqlogger = reqlogger.WithFields(logrus.Fields{
+		ctx, reqlogger = expandCtxLogger(ctx, logrus.Fields{
 			"reponame": reponame,
 			"command":  command,
 		})
@@ -136,7 +104,7 @@ func (cfg *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if !cfg.checkAccess(perminfo, reponame, constants.CertPermissionRead) {
+		if !cfg.checkAccess(ctx, reponame, constants.CertPermissionRead) {
 			// If we don't have read access, we have no access to this repo
 			reqlogger.Info("Unauthorized request")
 			http.NotFound(w, r)
@@ -144,20 +112,20 @@ func (cfg *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if command == "info/refs" {
-			cfg.serveGitDiscovery(w, r, perminfo, reqlogger, reponame, false)
+			cfg.serveGitDiscovery(ctx, w, r, reponame, false)
 			return
 		} else if command == "git-upload-pack" {
-			cfg.serveGitUploadPack(w, r, reqlogger, reponame)
+			cfg.serveGitUploadPack(ctx, w, r, reponame)
 			return
 		} else if command == "git-receive-pack" {
-			if !cfg.checkAccess(perminfo, reponame, constants.CertPermissionWrite) {
+			if !cfg.checkAccess(ctx, reponame, constants.CertPermissionWrite) {
 				// Write access denied
 				reqlogger.Info("Unauthorized request")
 				http.NotFound(w, r)
 				return
 			}
 
-			cfg.serveGitReceivePack(w, r, reqlogger, reponame)
+			cfg.serveGitReceivePack(ctx, w, r, reponame)
 			return
 		} else if command == "simple/refs" {
 			w.WriteHeader(200)
@@ -204,7 +172,7 @@ func (cfg *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	} else if pathparts[0] == "monitor" {
-		if !cfg.checkAccess(perminfo, "*", constants.CertPermissionMonitor) {
+		if !cfg.checkAccess(ctx, "*", constants.CertPermissionMonitor) {
 			reqlogger.Info("Unauthorized admin request received")
 
 			w.WriteHeader(401)
@@ -215,7 +183,7 @@ func (cfg *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		cfg.serveAdminNodeStatus(w, r)
 		return
 	} else if pathparts[0] == "admin" {
-		if !cfg.checkAccess(perminfo, "*", constants.CertPermissionAdmin) {
+		if !cfg.checkAccess(ctx, "*", constants.CertPermissionAdmin) {
 			reqlogger.Info("Unauthorized admin request received")
 
 			w.WriteHeader(401)

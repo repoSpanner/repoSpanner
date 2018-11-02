@@ -2,6 +2,7 @@ package service
 
 import (
 	"bufio"
+	"context"
 	"crypto/sha1"
 	"fmt"
 	"io"
@@ -14,45 +15,43 @@ import (
 	"github.com/spf13/viper"
 )
 
-func (cfg *Service) serveGitReceivePack(w http.ResponseWriter, r *http.Request, reqlogger *logrus.Entry, reponame string) {
+func (cfg *Service) serveGitReceivePack(ctx context.Context, w http.ResponseWriter, r *http.Request, reponame string) {
+	reqlogger := loggerFromCtx(ctx)
+
 	bodyreader := bufio.NewReader(r.Body)
 	rw := newWrappedResponseWriter(w)
 
 	reqlogger.Debug("git-receive-pack requested")
 	projectstore := cfg.gitstore.GetProjectStorage(reponame)
 
-	capabs, toupdate, err := cfg.readDownloadPacketRequestHeader(bodyreader, reqlogger, reponame)
+	capabs, toupdate, err := cfg.readDownloadPacketRequestHeader(ctx, bodyreader, reponame)
 	if err != nil {
 		reqlogger.WithError(err).Info("Invalid request received")
 		sendPacket(rw, []byte("ERR Invalid request"))
 		return
 	}
-	reqlogger = reqlogger.WithFields(logrus.Fields{
+	ctx, reqlogger = expandCtxLogger(ctx, logrus.Fields{
 		"capabs":   capabs,
 		"toupdate": fmt.Sprintf("%s", toupdate),
 	})
-	hasStatus := hasCapab(capabs, "report-status")
-	sbstatus, err := getSideBandStatus(capabs)
+	ctx, reqlogger, err = addCapabsToCtx(ctx, capabs)
 	if err != nil {
 		reqlogger.WithError(err).Info("Invalid request received")
 		sendPacket(rw, []byte("ERR Invalid request"))
 		return
 	}
-	reqlogger = reqlogger.WithField(
-		"sbstatus", sbstatus,
-	)
 	infosender := sideBandSender{
-		w:        rw,
-		sbstatus: sbstatus,
-		sb:       sideBandProgress,
+		ctx: ctx,
+		w:   rw,
+		sb:  sideBandProgress,
 	}
 	errsender := sideBandSender{
-		w:        rw,
-		sbstatus: sbstatus,
-		sb:       sideBandProgress,
+		ctx: ctx,
+		w:   rw,
+		sb:  sideBandProgress,
 	}
 
-	cfg.maybeSayHello(rw, sbstatus)
+	cfg.maybeSayHello(ctx, rw)
 
 	// Get extra information to pass into any hooks we might run
 	hookExtras := make(map[string]string)
@@ -64,22 +63,36 @@ func (cfg *Service) serveGitReceivePack(w http.ResponseWriter, r *http.Request, 
 	}
 
 	// Perform a pre-check to determine whether there's any chance of success after we parse all the objects
-	cfg.debugPacket(rw, sbstatus, "Performing pre-check...")
+	cfg.debugPacket(ctx, rw, "Performing pre-check...")
 	precheckresult := cfg.statestore.getPushResult(toupdate)
-	cfg.debugPacket(rw, sbstatus, "Pre-check results in")
+	cfg.debugPacket(ctx, rw, "Pre-check results in")
 
 	if !precheckresult.success {
-		sendPushResult(rw, hasStatus, sbstatus, precheckresult)
+		sendPushResult(ctx, rw, precheckresult)
 		return
 	}
 
-	if rw.IsClosed() {
+	if ctx.Err() != nil {
 		reqlogger.Debug("Connection closed")
 		return
 	}
 
 	pusher := projectstore.GetPusher(toupdate.UUID())
+	ctx, cancel := context.WithCancel(ctx)
 	pushresultc := pusher.GetPushResultChannel()
+	go func() {
+		select {
+		case <-ctx.Done():
+			return
+		case syncerr := <-pushresultc:
+			if syncerr != nil {
+				reqlogger.WithError(syncerr).Info("Error syncing object out to enough nodes")
+				sendSideBandPacket(ctx, w, sideBandProgress, []byte("ERR Object sync failed\n"))
+				sendUnpackFail(ctx, w, toupdate)
+				cancel()
+			}
+		}
+	}()
 
 	if toupdate.ExpectPackFile() {
 		packhasher := sha1.New()
@@ -87,7 +100,7 @@ func (cfg *Service) serveGitReceivePack(w http.ResponseWriter, r *http.Request, 
 		version, numobjects, err := getPackHeader(packreader)
 		if err != nil {
 			reqlogger.WithError(err).Info("Unable to get packfile header")
-			sendSideBandPacket(rw, sbstatus, sideBandProgress, []byte("ERR Invalid packfile\n"))
+			sendSideBandPacket(ctx, rw, sideBandProgress, []byte("ERR Invalid packfile\n"))
 			return
 		}
 		reqlogger = reqlogger.WithField(
@@ -95,8 +108,8 @@ func (cfg *Service) serveGitReceivePack(w http.ResponseWriter, r *http.Request, 
 		)
 		if version != 2 {
 			reqlogger.Info("Invalid pack version received")
-			sendSideBandPacket(rw, sbstatus, sideBandProgress, []byte("ERR Invalid packfile version"))
-			sendUnpackFail(rw, hasStatus, sbstatus, toupdate)
+			sendSideBandPacket(ctx, rw, sideBandProgress, []byte("ERR Invalid packfile version"))
+			sendUnpackFail(ctx, rw, toupdate)
 			return
 		}
 		reqlogger.Debug("Got receive-pack request header")
@@ -104,8 +117,8 @@ func (cfg *Service) serveGitReceivePack(w http.ResponseWriter, r *http.Request, 
 		deltasqueue, err := ioutil.TempFile("", "repospanner_deltaqueue_")
 		if err != nil {
 			reqlogger.WithError(err).Info("Unable to create deltaqueue")
-			sendSideBandPacket(w, sbstatus, sideBandProgress, []byte("ERR Internal error\n"))
-			sendUnpackFail(w, hasStatus, sbstatus, toupdate)
+			sendSideBandPacket(ctx, w, sideBandProgress, []byte("ERR Internal error\n"))
+			sendUnpackFail(ctx, w, toupdate)
 			return
 		}
 		defer deltasqueue.Close()
@@ -117,20 +130,20 @@ func (cfg *Service) serveGitReceivePack(w http.ResponseWriter, r *http.Request, 
 			select {
 			case syncerr := <-pushresultc:
 				reqlogger.WithError(syncerr).Info("Error syncing object out to enough nodes")
-				sendSideBandPacket(w, sbstatus, sideBandProgress, []byte("ERR Object sync failed\n"))
-				sendUnpackFail(w, hasStatus, sbstatus, toupdate)
+				sendSideBandPacket(ctx, w, sideBandProgress, []byte("ERR Object sync failed\n"))
+				sendUnpackFail(ctx, w, toupdate)
+				return
+
+			case <-ctx.Done():
+				reqlogger.Debug("Connection closed")
 				return
 
 			default:
-				if rw.IsClosed() {
-					reqlogger.Debug("Connection closed")
-					return
-				}
 				_, _, resolve, err := getSingleObjectFromPack(packreader, pusher)
 				if err != nil {
 					reqlogger.WithError(err).Info("Error getting object")
-					sendSideBandPacket(w, sbstatus, sideBandProgress, []byte("ERR Invalid packfile\n"))
-					sendUnpackFail(w, hasStatus, sbstatus, toupdate)
+					sendSideBandPacket(ctx, w, sideBandProgress, []byte("ERR Invalid packfile\n"))
+					sendUnpackFail(ctx, w, toupdate)
 					return
 				}
 				if resolve.baseobj != "" {
@@ -143,33 +156,33 @@ func (cfg *Service) serveGitReceivePack(w http.ResponseWriter, r *http.Request, 
 		expectedSum := make([]byte, packhasher.Size())
 		if _, err := io.ReadFull(bodyreader, expectedSum); err != nil {
 			reqlogger.WithError(err).Info("Error reading expected checksum")
-			sendSideBandPacket(rw, sbstatus, sideBandProgress, []byte("ERR Packfile checksum failed\n"))
-			sendUnpackFail(rw, hasStatus, sbstatus, toupdate)
+			sendSideBandPacket(ctx, rw, sideBandProgress, []byte("ERR Packfile checksum failed\n"))
+			sendUnpackFail(ctx, rw, toupdate)
 			return
 		}
 
-		if !checksumsMatch(packhasher.Sum(nil), expectedSum, reqlogger) {
+		if !checksumsMatch(ctx, packhasher.Sum(nil), expectedSum) {
 			// Checksum failed, checksumsMatch already logs
-			sendSideBandPacket(rw, sbstatus, sideBandProgress, []byte("ERR Packfile checksum failed\n"))
-			sendUnpackFail(rw, hasStatus, sbstatus, toupdate)
+			sendSideBandPacket(ctx, rw, sideBandProgress, []byte("ERR Packfile checksum failed\n"))
+			sendUnpackFail(ctx, rw, toupdate)
 			return
 		}
 
 		rw.isfullyread = true
 
 		// Resolve deltas
-		err = processDeltas(reqlogger, deltaqueuesize, deltasqueue, pushresultc, rw, sbstatus, projectstore, pusher)
+		err = processDeltas(ctx, deltaqueuesize, deltasqueue, rw, projectstore, pusher)
 		if err != nil {
 			reqlogger.WithError(err).Info("Error processing deltas")
-			sendSideBandPacket(w, sbstatus, sideBandProgress, []byte("ERR Delta processing failed\n"))
-			sendUnpackFail(w, hasStatus, sbstatus, toupdate)
+			sendSideBandPacket(ctx, w, sideBandProgress, []byte("ERR Delta processing failed\n"))
+			sendUnpackFail(ctx, w, toupdate)
 			return
 		}
 
-		cfg.debugPacket(rw, sbstatus, "Delta resolving finished")
+		cfg.debugPacket(ctx, rw, "Delta resolving finished")
 		reqlogger.Debug("Pack file accepted, checksum matches")
 	}
-	if rw.IsClosed() {
+	if ctx.Err() != nil {
 		reqlogger.Debug("Connection closed")
 		return
 	}
@@ -178,18 +191,18 @@ func (cfg *Service) serveGitReceivePack(w http.ResponseWriter, r *http.Request, 
 
 	// TODO: Determine when to be paranoid and check objects all the way down
 	paranoid := viper.GetBool("checks.paranoid")
-	cfg.debugPacket(rw, sbstatus, "Validating objects...")
+	cfg.debugPacket(ctx, rw, "Validating objects...")
 	reqlogger.Debug("Validating all objects are reachable and sufficient")
 	if err := validateObjects(projectstore, toupdate, paranoid); err != nil {
 		reqlogger.WithError(err).Info("Object validation failure")
-		sendSideBandPacket(rw, sbstatus, sideBandProgress, []byte("ERR Object validation failed\n"))
-		sendUnpackFail(rw, hasStatus, sbstatus, toupdate)
+		sendSideBandPacket(ctx, rw, sideBandProgress, []byte("ERR Object validation failed\n"))
+		sendUnpackFail(ctx, rw, toupdate)
 		return
 	}
-	cfg.debugPacket(rw, sbstatus, "Objects validated")
+	cfg.debugPacket(ctx, rw, "Objects validated")
 	reqlogger.Debug("Objects in request are sufficient")
 
-	if rw.IsClosed() {
+	if ctx.Err() != nil {
 		reqlogger.Debug("Connection closed")
 		return
 	}
@@ -200,7 +213,7 @@ func (cfg *Service) serveGitReceivePack(w http.ResponseWriter, r *http.Request, 
 	cfg.statestore.AddFakeRefs(reponame, toupdate)
 	defer cfg.statestore.RemoveFakeRefs(reponame, toupdate)
 
-	cfg.debugPacket(rw, sbstatus, "Running pre-receive hook...")
+	cfg.debugPacket(ctx, rw, "Running pre-receive hook...")
 	err = cfg.runHook(
 		hookTypePreReceive,
 		errsender,
@@ -211,13 +224,13 @@ func (cfg *Service) serveGitReceivePack(w http.ResponseWriter, r *http.Request, 
 	)
 	if err != nil {
 		reqlogger.WithError(err).Debug("Pre-receive hook refused push")
-		sendSideBandPacket(w, sbstatus, sideBandProgress, []byte("ERR Pre-receive hook refused push\n"))
-		sendUnpackFail(w, hasStatus, sbstatus, toupdate)
+		sendSideBandPacket(ctx, w, sideBandProgress, []byte("ERR Pre-receive hook refused push\n"))
+		sendUnpackFail(ctx, w, toupdate)
 		return
 	}
-	cfg.debugPacket(rw, sbstatus, "Pre-receive hook done")
+	cfg.debugPacket(ctx, rw, "Pre-receive hook done")
 
-	cfg.debugPacket(rw, sbstatus, "Running update hook...")
+	cfg.debugPacket(ctx, rw, "Running update hook...")
 	err = cfg.runHook(
 		hookTypeUpdate,
 		errsender,
@@ -228,35 +241,35 @@ func (cfg *Service) serveGitReceivePack(w http.ResponseWriter, r *http.Request, 
 	)
 	if err != nil {
 		reqlogger.WithError(err).Debug("Update hook refused push")
-		sendSideBandPacket(w, sbstatus, sideBandProgress, []byte("ERR Update hook refused push\n"))
-		sendUnpackFail(w, hasStatus, sbstatus, toupdate)
+		sendSideBandPacket(ctx, w, sideBandProgress, []byte("ERR Update hook refused push\n"))
+		sendUnpackFail(ctx, w, toupdate)
 		return
 	}
-	cfg.debugPacket(rw, sbstatus, "Update hook done")
+	cfg.debugPacket(ctx, rw, "Update hook done")
 
 	// We wait for either the first error, or the waitgroup to be fully done, which will
 	// close the channel, returning a <nil> value.
-	cfg.debugPacket(rw, sbstatus, "Syncing objects...")
+	cfg.debugPacket(ctx, rw, "Syncing objects...")
 	syncerr, isopen := <-pushresultc
 	if syncerr == nil && isopen == true {
 		// Someone sent <nil> over the channel. That is a coding error.
-		sendSideBandPacket(w, sbstatus, sideBandProgress, []byte("ERR Object sync failed\n"))
-		sendUnpackFail(w, hasStatus, sbstatus, toupdate)
+		sendSideBandPacket(ctx, w, sideBandProgress, []byte("ERR Object sync failed\n"))
+		sendUnpackFail(ctx, w, toupdate)
 		// This is a definite coding error. Let's panic to be really, *really* obnoxious in logs.
 		// The http.Server should capture it, and prevent the server from crashing alltogether.
 		panic("syncerr channel got nil without close, coding error")
 	}
 	if syncerr != nil {
 		reqlogger.WithError(syncerr).Info("Error syncing object out to enough nodes")
-		sendSideBandPacket(w, sbstatus, sideBandProgress, []byte("ERR Object sync failed\n"))
-		sendUnpackFail(w, hasStatus, sbstatus, toupdate)
+		sendSideBandPacket(ctx, w, sideBandProgress, []byte("ERR Object sync failed\n"))
+		sendUnpackFail(ctx, w, toupdate)
 		return
 	}
-	cfg.debugPacket(rw, sbstatus, "Objects synced")
+	cfg.debugPacket(ctx, rw, "Objects synced")
 
-	cfg.debugPacket(rw, sbstatus, "Requesting push...")
+	cfg.debugPacket(ctx, rw, "Requesting push...")
 	pushresult := cfg.statestore.performPush(toupdate)
-	cfg.debugPacket(rw, sbstatus, "Push results in")
+	cfg.debugPacket(ctx, rw, "Push results in")
 
 	reqlogger.WithFields(logrus.Fields{
 		"success":     pushresult.success,
@@ -268,7 +281,7 @@ func (cfg *Service) serveGitReceivePack(w http.ResponseWriter, r *http.Request, 
 		reqlogger.WithError(pushresult.logerror).Info("Push failed")
 	}
 
-	cfg.debugPacket(rw, sbstatus, "Running post-receive hook...")
+	cfg.debugPacket(ctx, rw, "Running post-receive hook...")
 	err = cfg.runHook(
 		hookTypePostReceive,
 		errsender,
@@ -280,9 +293,9 @@ func (cfg *Service) serveGitReceivePack(w http.ResponseWriter, r *http.Request, 
 	if err != nil {
 		reqlogger.WithError(err).Debug("Post-receive hook failed")
 	}
-	cfg.debugPacket(rw, sbstatus, "Post-receive hook done")
+	cfg.debugPacket(ctx, rw, "Post-receive hook done")
 
-	sendPushResult(rw, hasStatus, sbstatus, pushresult)
+	sendPushResult(ctx, rw, pushresult)
 	reqlogger.Debug("Push result sent, we are all done")
 	// And... we are done! That was a ride
 	return
