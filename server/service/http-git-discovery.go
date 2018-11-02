@@ -1,15 +1,17 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
-	"github.com/sirupsen/logrus"
 	"repospanner.org/repospanner/server/constants"
 	"repospanner.org/repospanner/server/storage"
 )
 
-func (cfg *Service) serveGitDiscovery(w http.ResponseWriter, r *http.Request, perminfo permissionInfo, reqlogger *logrus.Entry, reponame string, fakerefs bool) {
+func (cfg *Service) serveGitDiscovery(ctx context.Context, w http.ResponseWriter, r *http.Request, reponame string, fakerefs bool) {
+	reqlogger := loggerFromCtx(ctx)
+
 	// Git smart protocol handshake
 	services := r.URL.Query()["service"]
 	if len(services) != 1 {
@@ -26,7 +28,7 @@ func (cfg *Service) serveGitDiscovery(w http.ResponseWriter, r *http.Request, pe
 	if service == "git-upload-pack" || service == "git-receive-pack" {
 		read := service == "git-upload-pack"
 
-		if !read && !cfg.checkAccess(perminfo, reponame, constants.CertPermissionWrite) {
+		if !read && !cfg.checkAccess(ctx, reponame, constants.CertPermissionWrite) {
 			// Write access denied
 			reqlogger.Info("Unauthorized request")
 			http.NotFound(w, r)

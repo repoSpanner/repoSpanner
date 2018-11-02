@@ -46,7 +46,8 @@ func (cfg *Service) runRPC(errchan chan<- error) {
 }
 
 func (cfg *Service) rpcRepoHandler(w http.ResponseWriter, r *http.Request) {
-	reqlogger, perminfo := cfg.prereq(w, r, "rpc")
+	ctx := cfg.ctxFromReq(w, r, "rpc")
+	reqlogger := loggerFromCtx(ctx)
 
 	pathparts := strings.Split(r.URL.Path, "/")[3:]
 	reponame, command := findProjectAndOp(pathparts)
@@ -55,7 +56,7 @@ func (cfg *Service) rpcRepoHandler(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	reqlogger = reqlogger.WithFields(logrus.Fields{
+	ctx, reqlogger = expandCtxLogger(ctx, logrus.Fields{
 		"reponame": reponame,
 		"command":  command,
 	})
@@ -66,9 +67,9 @@ func (cfg *Service) rpcRepoHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if command == "info/refs" {
-		cfg.serveGitDiscovery(w, r, perminfo, reqlogger, reponame, true)
+		cfg.serveGitDiscovery(ctx, w, r, reponame, true)
 	} else if command == "git-upload-pack" {
-		cfg.serveGitUploadPack(w, r, reqlogger, reponame)
+		cfg.serveGitUploadPack(ctx, w, r, reponame)
 	} else {
 		reqlogger.Info("Invalid action requested")
 		http.NotFound(w, r)
@@ -76,7 +77,7 @@ func (cfg *Service) rpcRepoHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *Service) rpcWriteSingleObject(w http.ResponseWriter, r *http.Request) {
-	cfg.prereq(w, r, "rpc")
+	cfg.ctxFromReq(w, r, "rpc")
 
 	split := strings.Split(r.URL.Path, "/")
 	if len(split) < 6 {
@@ -178,7 +179,7 @@ func (cfg *Service) rpcWriteSingleObject(w http.ResponseWriter, r *http.Request)
 }
 
 func (cfg *Service) rpcGetSingleObject(w http.ResponseWriter, r *http.Request) {
-	cfg.prereq(w, r, "rpc")
+	cfg.ctxFromReq(w, r, "rpc")
 
 	split := strings.Split(r.URL.Path, "/")
 	if len(split) < 6 {
@@ -250,7 +251,7 @@ type rpcJoinNodeReply struct {
 }
 
 func (cfg *Service) rpcJoinNode(w http.ResponseWriter, r *http.Request) {
-	cfg.prereq(w, r, "rpc")
+	cfg.ctxFromReq(w, r, "rpc")
 
 	var joinrequest rpcJoinNodeRequest
 	if cont := cfg.parseJSONRequest(w, r, &joinrequest); !cont {

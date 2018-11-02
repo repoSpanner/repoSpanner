@@ -2,13 +2,13 @@ package service
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	"repospanner.org/repospanner/server/storage"
 )
 
@@ -21,6 +21,8 @@ type resolveFailure struct {
 	obj resolveInfo
 	err error
 }
+
+const deltaWorkers = 4
 
 func deltaProcessor(projectstore storage.ProjectStorageDriver, pusher storage.ProjectStoragePushDriver, input <-chan resolveInfo, results chan<- *resolveFailure) {
 	for msg := range input {
@@ -55,7 +57,9 @@ func getNextDelta(deltasqueue *os.File) (*resolveInfo, error) {
 
 }
 
-func processDeltas(reqlogger *logrus.Entry, deltaqueuesize int, deltasqueue *os.File, pushresultc <-chan error, rw *wrappedResponseWriter, sbstatus sideBandStatus, projectstore storage.ProjectStorageDriver, pusher storage.ProjectStoragePushDriver) error {
+func processDeltas(ctx context.Context, deltaqueuesize int, deltasqueue *os.File, rw *wrappedResponseWriter, projectstore storage.ProjectStorageDriver, pusher storage.ProjectStoragePushDriver) error {
+	reqlogger := loggerFromCtx(ctx)
+
 	// Resolve deltas
 	reqlogger.Debugf("Resolving %d deltas", deltaqueuesize)
 	var deltasresolved int
@@ -74,7 +78,7 @@ func processDeltas(reqlogger *logrus.Entry, deltaqueuesize int, deltasqueue *os.
 		}()
 		results := make(chan *resolveFailure)
 		// TODO: Figure out how to decide how many workers to start
-		for i := 0; i < 4; i++ {
+		for i := 0; i < deltaWorkers; i++ {
 			go deltaProcessor(projectstore, pusher, input, results)
 		}
 
@@ -115,8 +119,8 @@ func processDeltas(reqlogger *logrus.Entry, deltaqueuesize int, deltasqueue *os.
 		for {
 			if deltasresolved%100 == 0 && deltasresolved != lastprint {
 				sendSideBandPacket(
+					ctx,
 					rw,
-					sbstatus,
 					sideBandProgress,
 					[]byte(fmt.Sprintf(
 						"Resolving deltas (%d/%d)...\n",
@@ -128,12 +132,12 @@ func processDeltas(reqlogger *logrus.Entry, deltaqueuesize int, deltasqueue *os.
 			}
 
 			select {
-			case syncerr := <-pushresultc:
+			case <-ctx.Done():
 				// Make sure that the workers terminate
 				if input != nil {
 					close(input)
 				}
-				return errors.Wrap(syncerr, "Error syncing object to enough peers")
+				return ctx.Err()
 
 			case resolveres := <-results:
 				inflight--
@@ -154,9 +158,6 @@ func processDeltas(reqlogger *logrus.Entry, deltaqueuesize int, deltasqueue *os.
 			case input <- nextToSend:
 				// Get next to send
 				inflight++
-				if rw.IsClosed() {
-					return errors.New("Connection closed")
-				}
 				nextDelta, err = getNextDelta(deltasqueue)
 				if err != nil {
 					return err

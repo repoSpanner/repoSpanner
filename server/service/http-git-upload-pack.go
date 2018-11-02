@@ -2,6 +2,7 @@ package service
 
 import (
 	"bufio"
+	"context"
 	"crypto/sha1"
 	"io"
 	"net/http"
@@ -10,13 +11,15 @@ import (
 	"repospanner.org/repospanner/server/storage"
 )
 
-func (cfg *Service) serveGitUploadPack(w http.ResponseWriter, r *http.Request, reqlogger *logrus.Entry, reponame string) {
+func (cfg *Service) serveGitUploadPack(ctx context.Context, w http.ResponseWriter, r *http.Request, reponame string) {
+	reqlogger := loggerFromCtx(ctx)
+
 	reqlogger.Debug("Read requested")
 	bodyreader := bufio.NewReader(r.Body)
 	rw := newWrappedResponseWriter(w)
 	projectstore := cfg.gitstore.GetProjectStorage(reponame)
 
-	capabs, wants, err := readUploadPackRequest(bodyreader, reqlogger)
+	capabs, wants, err := readUploadPackRequest(ctx, bodyreader)
 	if err != nil {
 		reqlogger.WithField("err", err).Debug("Invalid request received")
 		w.WriteHeader(400)
@@ -24,20 +27,21 @@ func (cfg *Service) serveGitUploadPack(w http.ResponseWriter, r *http.Request, r
 		return
 	}
 
-	reqlogger = reqlogger.WithFields(logrus.Fields{
-		"capabilities": capabs,
-		"wants":        wants,
+	ctx, reqlogger, err = addCapabsToCtx(ctx, capabs)
+	if err != nil {
+		reqlogger.WithField("err", err).Debug("Invalid request received")
+		w.WriteHeader(400)
+		w.Write([]byte("Error processing your request"))
+		return
+	}
+	ctx, reqlogger = expandCtxLogger(ctx, logrus.Fields{
+		"wants": wants,
 	})
 
 	reqlogger.Debug("Got request wants")
 
-	sbstatus, err := getSideBandStatus(capabs)
-	if err != nil {
-		panic(err)
-	}
-
-	multiAck := hasCapab(capabs, "multi_ack")
-	multiAckDetailed := hasCapab(capabs, "multi_ack_detailed")
+	multiAck := hasCapab(ctx, "multi_ack")
+	multiAckDetailed := hasCapab(ctx, "multi_ack_detailed")
 	sentdone := false
 	commonObjects := newObjectIDSearch()
 	firstCommon := storage.ZeroID
@@ -45,7 +49,7 @@ func (cfg *Service) serveGitUploadPack(w http.ResponseWriter, r *http.Request, r
 	sentReady := false
 	var commitsToSend objectIDSearcher
 	for {
-		have, isdone, iseof, err := readHavePacket(bodyreader, reqlogger)
+		have, isdone, iseof, err := readHavePacket(ctx, bodyreader)
 		if err != nil {
 			panic(err)
 		}
@@ -73,7 +77,7 @@ func (cfg *Service) serveGitUploadPack(w http.ResponseWriter, r *http.Request, r
 		}
 		if has {
 			commonObjects.Add(have)
-			enough, tosend, err := hasEnoughHaves(projectstore, reqlogger, wants, commonObjects)
+			enough, tosend, err := hasEnoughHaves(ctx, projectstore, wants, commonObjects)
 			if err != nil {
 				panic(err)
 			}
@@ -101,15 +105,15 @@ func (cfg *Service) serveGitUploadPack(w http.ResponseWriter, r *http.Request, r
 	} else {
 		sendPacket(rw, []byte("ACK "+firstCommon+"\n"))
 	}
-	if !sentdone && !hasCapab(capabs, "no-done") {
-		cfg.debugPacket(rw, sbstatus, "Not sending pack per request")
+	if !sentdone && !hasCapab(ctx, "no-done") {
+		cfg.debugPacket(ctx, rw, "Not sending pack per request")
 		return
 	}
 
 	rw.isfullyread = true
 
-	cfg.maybeSayHello(rw, sbstatus)
-	cfg.debugPacket(rw, sbstatus, "Building packfile")
+	cfg.maybeSayHello(ctx, rw)
+	cfg.debugPacket(ctx, rw, "Building packfile")
 
 	var commitList []storage.ObjectID
 	recursive := false
@@ -126,13 +130,13 @@ func (cfg *Service) serveGitUploadPack(w http.ResponseWriter, r *http.Request, r
 		panic(err)
 	}
 	defer packfile.Close()
-	cfg.debugPacket(rw, sbstatus, "Packfile built, sending")
+	cfg.debugPacket(ctx, rw, "Packfile built, sending")
 	reqlogger.Debug("Temporary packfile generated")
 
 	sbsender := sideBandSender{
-		w:        rw,
-		sbstatus: sbstatus,
-		sb:       sideBandData,
+		ctx: ctx,
+		w:   rw,
+		sb:  sideBandData,
 	}
 	packhasher := sha1.New()
 	packwriter := io.MultiWriter(packhasher, sbsender)
@@ -144,7 +148,7 @@ func (cfg *Service) serveGitUploadPack(w http.ResponseWriter, r *http.Request, r
 	}
 
 	for {
-		if rw.IsClosed() {
+		if ctx.Err() != nil {
 			reqlogger.Debug("Connection closed")
 			return
 		}
@@ -171,7 +175,7 @@ func (cfg *Service) serveGitUploadPack(w http.ResponseWriter, r *http.Request, r
 		panic(err)
 	}
 
-	cfg.debugPacket(rw, sbstatus, "Packfile sent")
+	cfg.debugPacket(ctx, rw, "Packfile sent")
 	err = sendFlushPacket(w)
 
 	reqlogger.Debug("Pull result sent, we are all done")
