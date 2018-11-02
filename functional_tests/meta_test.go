@@ -13,10 +13,10 @@ func TestMeta(t *testing.T) {
 func performMetaTest(t *testing.T, method cloneMethod) {
 	defer testCleanup(t)
 	nodea := nodeNrType(1)
-	//nodeb := nodeNrType(2)
-	//nodec := nodeNrType(3)
+	nodeb := nodeNrType(2)
+	nodec := nodeNrType(3)
 
-	createNodes(t, nodea) //, nodeb, nodec)
+	createNodes(t, nodea, nodeb, nodec)
 
 	createRepo(t, nodea, "repoSpanner", true)
 
