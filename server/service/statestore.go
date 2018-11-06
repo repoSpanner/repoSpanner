@@ -647,6 +647,9 @@ func (store *stateStore) editRepo(repo string, request []byte) error {
 }
 
 func (store *stateStore) hasRepo(repo string) (exists bool) {
+	store.mux.RLock()
+	defer store.mux.RUnlock()
+
 	_, exists = store.repoinfos[repo]
 	return
 }
