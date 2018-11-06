@@ -191,6 +191,9 @@ func (cfg *Service) serveGitReceivePack(ctx context.Context, w http.ResponseWrit
 
 	// TODO: Determine when to be paranoid and check objects all the way down
 	paranoid := viper.GetBool("checks.paranoid")
+	if !viper.IsSet("checks.paranoid") {
+		paranoid = true
+	}
 	cfg.debugPacket(ctx, rw, "Validating objects...")
 	reqlogger.Debug("Validating all objects are reachable and sufficient")
 	if err := validateObjects(projectstore, toupdate, paranoid); err != nil {
