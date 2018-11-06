@@ -294,15 +294,15 @@ func readPacket(r io.Reader) ([]byte, error) {
 	return buff, nil
 }
 
-func sendUnpackFail(ctx context.Context, w io.Writer, toupdate *pb.PushRequest) {
+func sendUnpackFail(ctx context.Context, w io.Writer, toupdate *pb.PushRequest, msg string) {
 	if !hasCapab(ctx, "report-status") {
 		sendFlushPacket(w)
 		return
 	}
 
-	fails := []string{"unpack fail"}
+	fails := []string{msg}
 	for _, req := range toupdate.Requests {
-		fails = append(fails, "ng "+req.GetRef()+" unpack-failure")
+		fails = append(fails, fmt.Sprintf("ng %s %s", req.GetRef(), msg))
 	}
 	sendStatusPacket(
 		ctx,

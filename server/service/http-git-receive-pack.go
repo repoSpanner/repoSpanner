@@ -88,7 +88,7 @@ func (cfg *Service) serveGitReceivePack(ctx context.Context, w http.ResponseWrit
 			if syncerr != nil {
 				reqlogger.WithError(syncerr).Info("Error syncing object out to enough nodes")
 				sendSideBandPacket(ctx, w, sideBandProgress, []byte("ERR Object sync failed\n"))
-				sendUnpackFail(ctx, w, toupdate)
+				sendUnpackFail(ctx, w, toupdate, "sync-fail")
 				cancel()
 			}
 		}
@@ -101,6 +101,7 @@ func (cfg *Service) serveGitReceivePack(ctx context.Context, w http.ResponseWrit
 		if err != nil {
 			reqlogger.WithError(err).Info("Unable to get packfile header")
 			sendSideBandPacket(ctx, rw, sideBandProgress, []byte("ERR Invalid packfile\n"))
+			sendUnpackFail(ctx, w, toupdate, "pack-fail")
 			return
 		}
 		reqlogger = reqlogger.WithField(
@@ -109,7 +110,7 @@ func (cfg *Service) serveGitReceivePack(ctx context.Context, w http.ResponseWrit
 		if version != 2 {
 			reqlogger.Info("Invalid pack version received")
 			sendSideBandPacket(ctx, rw, sideBandProgress, []byte("ERR Invalid packfile version"))
-			sendUnpackFail(ctx, rw, toupdate)
+			sendUnpackFail(ctx, rw, toupdate, "pack-version-fail")
 			return
 		}
 		reqlogger.Debug("Got receive-pack request header")
@@ -118,7 +119,7 @@ func (cfg *Service) serveGitReceivePack(ctx context.Context, w http.ResponseWrit
 		if err != nil {
 			reqlogger.WithError(err).Info("Unable to create deltaqueue")
 			sendSideBandPacket(ctx, w, sideBandProgress, []byte("ERR Internal error\n"))
-			sendUnpackFail(ctx, w, toupdate)
+			sendUnpackFail(ctx, w, toupdate, "internal-error")
 			return
 		}
 		defer deltasqueue.Close()
@@ -131,7 +132,7 @@ func (cfg *Service) serveGitReceivePack(ctx context.Context, w http.ResponseWrit
 			case syncerr := <-pushresultc:
 				reqlogger.WithError(syncerr).Info("Error syncing object out to enough nodes")
 				sendSideBandPacket(ctx, w, sideBandProgress, []byte("ERR Object sync failed\n"))
-				sendUnpackFail(ctx, w, toupdate)
+				sendUnpackFail(ctx, w, toupdate, "sync-fail")
 				return
 
 			case <-ctx.Done():
@@ -143,7 +144,7 @@ func (cfg *Service) serveGitReceivePack(ctx context.Context, w http.ResponseWrit
 				if err != nil {
 					reqlogger.WithError(err).Info("Error getting object")
 					sendSideBandPacket(ctx, w, sideBandProgress, []byte("ERR Invalid packfile\n"))
-					sendUnpackFail(ctx, w, toupdate)
+					sendUnpackFail(ctx, w, toupdate, "parse-fail")
 					return
 				}
 				if resolve.baseobj != "" {
@@ -157,14 +158,14 @@ func (cfg *Service) serveGitReceivePack(ctx context.Context, w http.ResponseWrit
 		if _, err := io.ReadFull(bodyreader, expectedSum); err != nil {
 			reqlogger.WithError(err).Info("Error reading expected checksum")
 			sendSideBandPacket(ctx, rw, sideBandProgress, []byte("ERR Packfile checksum failed\n"))
-			sendUnpackFail(ctx, rw, toupdate)
+			sendUnpackFail(ctx, rw, toupdate, "internal-fail")
 			return
 		}
 
 		if !checksumsMatch(ctx, packhasher.Sum(nil), expectedSum) {
 			// Checksum failed, checksumsMatch already logs
 			sendSideBandPacket(ctx, rw, sideBandProgress, []byte("ERR Packfile checksum failed\n"))
-			sendUnpackFail(ctx, rw, toupdate)
+			sendUnpackFail(ctx, rw, toupdate, "checksum-fail")
 			return
 		}
 
@@ -175,7 +176,7 @@ func (cfg *Service) serveGitReceivePack(ctx context.Context, w http.ResponseWrit
 		if err != nil {
 			reqlogger.WithError(err).Info("Error processing deltas")
 			sendSideBandPacket(ctx, w, sideBandProgress, []byte("ERR Delta processing failed\n"))
-			sendUnpackFail(ctx, w, toupdate)
+			sendUnpackFail(ctx, w, toupdate, "delta-fail")
 			return
 		}
 
@@ -199,7 +200,7 @@ func (cfg *Service) serveGitReceivePack(ctx context.Context, w http.ResponseWrit
 	if err := validateObjects(projectstore, toupdate, paranoid); err != nil {
 		reqlogger.WithError(err).Info("Object validation failure")
 		sendSideBandPacket(ctx, rw, sideBandProgress, []byte("ERR Object validation failed\n"))
-		sendUnpackFail(ctx, rw, toupdate)
+		sendUnpackFail(ctx, rw, toupdate, "object-validation-fail")
 		return
 	}
 	cfg.debugPacket(ctx, rw, "Objects validated")
@@ -228,7 +229,7 @@ func (cfg *Service) serveGitReceivePack(ctx context.Context, w http.ResponseWrit
 	if err != nil {
 		reqlogger.WithError(err).Debug("Pre-receive hook refused push")
 		sendSideBandPacket(ctx, w, sideBandProgress, []byte("ERR Pre-receive hook refused push\n"))
-		sendUnpackFail(ctx, w, toupdate)
+		sendUnpackFail(ctx, w, toupdate, "pre-receive-hook-refuse")
 		return
 	}
 	cfg.debugPacket(ctx, rw, "Pre-receive hook done")
@@ -245,7 +246,7 @@ func (cfg *Service) serveGitReceivePack(ctx context.Context, w http.ResponseWrit
 	if err != nil {
 		reqlogger.WithError(err).Debug("Update hook refused push")
 		sendSideBandPacket(ctx, w, sideBandProgress, []byte("ERR Update hook refused push\n"))
-		sendUnpackFail(ctx, w, toupdate)
+		sendUnpackFail(ctx, w, toupdate, "update-hook-refuse")
 		return
 	}
 	cfg.debugPacket(ctx, rw, "Update hook done")
@@ -257,7 +258,7 @@ func (cfg *Service) serveGitReceivePack(ctx context.Context, w http.ResponseWrit
 	if syncerr == nil && isopen == true {
 		// Someone sent <nil> over the channel. That is a coding error.
 		sendSideBandPacket(ctx, w, sideBandProgress, []byte("ERR Object sync failed\n"))
-		sendUnpackFail(ctx, w, toupdate)
+		sendUnpackFail(ctx, w, toupdate, "internal-error")
 		// This is a definite coding error. Let's panic to be really, *really* obnoxious in logs.
 		// The http.Server should capture it, and prevent the server from crashing alltogether.
 		panic("syncerr channel got nil without close, coding error")
@@ -265,7 +266,7 @@ func (cfg *Service) serveGitReceivePack(ctx context.Context, w http.ResponseWrit
 	if syncerr != nil {
 		reqlogger.WithError(syncerr).Info("Error syncing object out to enough nodes")
 		sendSideBandPacket(ctx, w, sideBandProgress, []byte("ERR Object sync failed\n"))
-		sendUnpackFail(ctx, w, toupdate)
+		sendUnpackFail(ctx, w, toupdate, "sync-fail")
 		return
 	}
 	cfg.debugPacket(ctx, rw, "Objects synced")
