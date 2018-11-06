@@ -8,9 +8,9 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
 
 	"github.com/pkg/errors"
-
 	"repospanner.org/repospanner/server/utils"
 )
 
@@ -86,6 +86,11 @@ type treeStorageProjectDriverInstance struct {
 	p string
 }
 
+type treeStorageProjectListerInstance struct {
+	t *treeStorageProjectDriverInstance
+	e error
+}
+
 type treeStorageProjectPushDriverInstance struct {
 	t *treeStorageProjectDriverInstance
 	c chan error
@@ -98,10 +103,56 @@ type treeStorageProjectDriverStagedObject struct {
 	finalized bool
 }
 
+func (l *treeStorageProjectListerInstance) Objects() <-chan ObjectID {
+	objc := make(chan ObjectID)
+
+	go func(l *treeStorageProjectListerInstance, c chan<- ObjectID) {
+		projectpath := path.Join(l.t.t.dirname, l.t.p)
+		projectpathlen := len(projectpath)
+		suffixlen := len(l.t.t.compressExtension())
+		err := filepath.Walk(
+			projectpath,
+			func(path string, info os.FileInfo, err error) error {
+				if err != nil {
+					return err
+				}
+				if info.IsDir() {
+					// We are not interested in the directories
+					return nil
+				}
+				path = path[projectpathlen+1 : len(path)-suffixlen]
+				dir, file := filepath.Split(path)
+				if len(dir) != 3 {
+					return errors.Errorf("File %s is not aa/object", path)
+				}
+				oid := dir[:len(dir)-1] + file
+				if len(oid) != 40 {
+					return errors.Errorf("File %s is not valid oid", path)
+				}
+				c <- ObjectID(oid)
+				return nil
+			})
+		if err != nil {
+			l.e = errors.Wrapf(err, "Error listing objects")
+		}
+		close(objc)
+	}(l, objc)
+
+	return objc
+}
+
+func (l *treeStorageProjectListerInstance) Err() error {
+	return l.e
+}
+
 func (t *treeStorageProjectDriverInstance) getObjPath(objectid ObjectID) string {
 	sobjectid := string(objectid)
 	objdir := path.Join(t.t.dirname, t.p, sobjectid[:2])
 	return path.Join(objdir, sobjectid[2:]) + t.t.compressExtension()
+}
+
+func (t *treeStorageProjectDriverInstance) ListObjects() ProjectStorageObjectLister {
+	return &treeStorageProjectListerInstance{t: t}
 }
 
 func (t *treeStorageProjectDriverInstance) ReadObject(objectid ObjectID) (ObjectType, uint, io.ReadCloser, error) {

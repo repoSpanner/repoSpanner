@@ -8,6 +8,33 @@ import (
 	"testing"
 )
 
+func expectObjects(t *testing.T, d ProjectStorageDriver, allowextra bool, oids ...ObjectID) {
+	t.Log("Looking for objects: ", oids)
+	l := d.ListObjects()
+	for obj := range l.Objects() {
+		t.Log("Got object: ", obj)
+		found := -1
+		for nr, oid := range oids {
+			if oid == obj {
+				found = nr
+			}
+		}
+		if found == -1 && !allowextra {
+			t.Fatal("Extra object found: ", obj)
+			return
+		}
+		oids = append(oids[:found], oids[found+1:]...)
+	}
+	if l.Err() != nil {
+		t.Fatal("Error listing objects: ", l.Err())
+		return
+	}
+	if len(oids) != 0 {
+		t.Fatal("Objects not found: ", oids)
+		return
+	}
+}
+
 func testStorageDriver(name string, instance StorageDriver, t *testing.T) {
 	// No objects stored yet. This should ay NoSuchObjectError
 	p1 := instance.GetProjectStorage("test/project1")
@@ -58,6 +85,7 @@ func testStorageDriver(name string, instance StorageDriver, t *testing.T) {
 	default:
 		t.Fatal("Done channel not closed")
 	}
+	expectObjects(t, p1, false, "30d74d258442c7c65512eafab474568dd706c430")
 
 	// Re-write the first object
 	p1w = p1.GetPusher("")
@@ -101,6 +129,7 @@ func testStorageDriver(name string, instance StorageDriver, t *testing.T) {
 	default:
 		t.Fatal("Done channel not closed")
 	}
+	expectObjects(t, p1, false, "30d74d258442c7c65512eafab474568dd706c430")
 
 	staged, err = p1w.StageObject(ObjectTypeBlob, 5)
 	if err != nil {
@@ -229,6 +258,10 @@ func testStorageDriver(name string, instance StorageDriver, t *testing.T) {
 	if err != ErrObjectNotFound {
 		t.Fatal(fmt.Sprintf("p1 object available via p2"))
 	}
+
+	// And check all object lists
+	expectObjects(t, p1, false, "30d74d258442c7c65512eafab474568dd706c430")
+	expectObjects(t, p2, false, "5c40945c981bd37a6912f5e2d3b2ceabfec5452a")
 }
 
 func TestGzipCompressedTreeStorageDriver(t *testing.T) {
@@ -263,7 +296,7 @@ func TestZlibCompressedTreeStorageDriver(t *testing.T) {
 		treeconf["type"] = "tree"
 		treeconf["directory"] = dir
 		treeconf["clustered"] = "false"
-		treeconf["compressmethod"] = "gzip"
+		treeconf["compressmethod"] = "zlib"
 		instance, err := InitializeStorageDriver(treeconf)
 		if err != nil {
 			panic(err)

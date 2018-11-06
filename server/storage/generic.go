@@ -82,8 +82,14 @@ var ErrObjectNotFound = errors.New("Object not found")
 
 type ProjectStorageDriver interface {
 	ReadObject(objectid ObjectID) (ObjectType, uint, io.ReadCloser, error)
+	ListObjects() ProjectStorageObjectLister
 
 	GetPusher(pushuuid string) ProjectStoragePushDriver
+}
+
+type ProjectStorageObjectLister interface {
+	Objects() <-chan ObjectID
+	Err() error
 }
 
 type ProjectStoragePushDriver interface {
