@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
-	"path/filepath"
 
 	"github.com/pkg/errors"
 	"repospanner.org/repospanner/server/utils"
@@ -103,39 +102,65 @@ type treeStorageProjectDriverStagedObject struct {
 	finalized bool
 }
 
+const treeStorageDriverObjDirBatchSize = 50
+
 func (l *treeStorageProjectListerInstance) Objects() <-chan ObjectID {
 	objc := make(chan ObjectID)
 
 	go func(l *treeStorageProjectListerInstance, c chan<- ObjectID) {
+		defer close(c)
+
 		projectpath := path.Join(l.t.t.dirname, l.t.p)
-		projectpathlen := len(projectpath)
 		suffixlen := len(l.t.t.compressExtension())
-		err := filepath.Walk(
-			projectpath,
-			func(path string, info os.FileInfo, err error) error {
-				if err != nil {
-					return err
-				}
-				if info.IsDir() {
-					// We are not interested in the directories
-					return nil
-				}
-				path = path[projectpathlen+1 : len(path)-suffixlen]
-				dir, file := filepath.Split(path)
-				if len(dir) != 3 {
-					return errors.Errorf("File %s is not aa/object", path)
-				}
-				oid := dir[:len(dir)-1] + file
-				if len(oid) != 40 {
-					return errors.Errorf("File %s is not valid oid", path)
-				}
-				c <- ObjectID(oid)
-				return nil
-			})
+
+		projectdir, err := os.Open(projectpath)
 		if err != nil {
-			l.e = errors.Wrapf(err, "Error listing objects")
+			l.e = errors.Wrap(err, "Error opening project directory")
+			return
 		}
-		close(objc)
+		// This contains at most 256 (16*16) entries, it's fine to have in one go
+		objectdirs, err := projectdir.Readdir(0)
+		if err != nil {
+			l.e = errors.Wrap(err, "Error listing object directories")
+			return
+		}
+
+		for _, objdirinfo := range objectdirs {
+			if len(objdirinfo.Name()) != 2 {
+				l.e = errors.Errorf("Object directory %s invalid", objdirinfo.Name())
+				return
+			}
+			objdir, err := os.Open(path.Join(projectpath, objdirinfo.Name()))
+			if err != nil {
+				l.e = errors.Wrapf(err, "Error opening object directory %s", objdirinfo.Name())
+				return
+			}
+
+			for {
+				objinfos, err := objdir.Readdir(treeStorageDriverObjDirBatchSize)
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					l.e = errors.Wrapf(err, "Error reading object infos for: %s", objdirinfo.Name())
+					return
+				}
+
+				for _, objinfo := range objinfos {
+					if objinfo.IsDir() {
+						l.e = errors.New("Object is directory?")
+						return
+					}
+					if len(objinfo.Name()) != 38+suffixlen {
+						l.e = errors.Errorf("Object %s invalid", objinfo.Name())
+						return
+					}
+					oid := objdirinfo.Name() + objinfo.Name()
+					oid = oid[:len(oid)-suffixlen]
+					c <- ObjectID(oid)
+				}
+			}
+		}
 	}(l, objc)
 
 	return objc
