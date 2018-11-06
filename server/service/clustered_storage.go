@@ -194,6 +194,22 @@ func (d *clusterStorageProjectDriverInstance) tryObjectFromNode(objectid storage
 	}, nil
 }
 
+type clusteredStorageNoLister int
+
+func (d *clusterStorageProjectDriverInstance) ListObjects() storage.ProjectStorageObjectLister {
+	return clusteredStorageNoLister(42)
+}
+
+func (l clusteredStorageNoLister) Objects() <-chan storage.ObjectID {
+	c := make(chan storage.ObjectID)
+	close(c)
+	return c
+}
+
+func (l clusteredStorageNoLister) Err() error {
+	return errors.New("Clustered storage driver cannot list objects")
+}
+
 func (d *clusterStorageProjectDriverInstance) ReadObject(objectid storage.ObjectID) (storage.ObjectType, uint, io.ReadCloser, error) {
 	logger := d.d.cfg.log.WithFields(logrus.Fields{
 		"objectid": objectid,
