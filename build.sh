@@ -6,7 +6,8 @@ fi
 
 if [ "$FULLUPDATE" == "yes" ];
 then
-	dep ensure -update
+	dep ensure -v -update
+    git diff Gopkg.lock
 fi
 
 export VERSION="`cat VERSION`"
