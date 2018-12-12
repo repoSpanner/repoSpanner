@@ -52,15 +52,17 @@ func (cfg *Service) parseJSONRequest(w http.ResponseWriter, r *http.Request, out
 	}
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
+		cfg.log.WithError(err).Info("Error reading JSON request")
 		w.WriteHeader(500)
-		w.Write([]byte("Error parsing request"))
+		w.Write([]byte("Error parsing request: incomplete request received"))
 		return false
 	}
 
 	err = json.Unmarshal(body, out)
 	if err != nil {
+		cfg.log.WithError(err).Info("Error parsing JSON request")
 		w.WriteHeader(500)
-		w.Write([]byte("Error parsing request"))
+		w.Write([]byte("Error parsing request: JSON parse error"))
 		return false
 	}
 	return true
