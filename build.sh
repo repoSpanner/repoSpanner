@@ -4,10 +4,10 @@ then
 	dep ensure
 fi
 
-if [ "$FULLUPDATE" == "yes" ];
+if [ "$FULLUPDATE" = "yes" ];
 then
 	dep ensure -v -update
-    git diff Gopkg.lock
+	git diff Gopkg.lock
 fi
 
 export VERSION="`cat VERSION`"
