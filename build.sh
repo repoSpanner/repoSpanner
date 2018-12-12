@@ -4,6 +4,11 @@ then
 	dep ensure
 fi
 
+if [ "$FULLUPDATE" == "yes" ];
+then
+	dep ensure -update
+fi
+
 export VERSION="`cat VERSION`"
 export GITDESCRIP="`git describe --long --tags --dirty --always`"
 

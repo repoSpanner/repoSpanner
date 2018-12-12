@@ -27,7 +27,6 @@ before_script:
 - echo "127.0.0.1   node1.regiona.repospanner.local node2.regiona.repospanner.local node3.regiona.repospanner.local" | sudo tee -a /etc/hosts
 script:
 - dep ensure
-- [ "$FULLUPDATE" == "yes" ] && dep ensure -update
 - ./build.sh -tags prof
 - go vet ./...
 - go test ./... -tags ${EXTRATAGS:-plain} -timeout 9m
