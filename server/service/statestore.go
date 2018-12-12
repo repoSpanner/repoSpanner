@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"strings"
 	"sync"
 	"time"
 
@@ -438,6 +439,24 @@ func (store *stateStore) unsubscribeRepoChangeRequest(repo string, crC chan *pb.
 	}
 }
 
+func (store *stateStore) applySymrefUpdate(repo datastructures.RepoInfo, symrefreq string) {
+	store.cfg.log.Errorf("Got symrefreq: %s", symrefreq)
+	updates := strings.Split(symrefreq, " ")
+
+	for _, update := range updates {
+		req := strings.SplitN(update, "=", 2)
+		store.cfg.log.Errorf("Req: %s", req)
+		symref := req[0]
+		target := req[1]
+
+		if target == "" {
+			delete(repo.Symrefs, symref)
+		} else {
+			repo.Symrefs[symref] = target
+		}
+	}
+}
+
 func (store *stateStore) applyUpdateRequest(reponame string, request datastructures.RepoUpdateRequest) {
 	repo := store.repoinfos[reponame]
 	for field, val := range request.UpdateRequest {
@@ -451,6 +470,8 @@ func (store *stateStore) applyUpdateRequest(reponame string, request datastructu
 			repo.Hooks.Update = val
 		case datastructures.RepoUpdateHookPostReceive:
 			repo.Hooks.PostReceive = val
+		case datastructures.RepoUpdateSymref:
+			store.applySymrefUpdate(repo, val)
 		}
 	}
 	store.repoinfos[reponame] = repo
@@ -582,7 +603,7 @@ func (store *stateStore) createRepo(repo string, public bool) error {
 	if err != nil {
 		return errors.Wrap(err, "Error marshalling newrepo request")
 	}
-	store.cfg.log.Info("Repo creation requested")
+	store.cfg.log.Infof("Repo creation requested of %s", repo)
 	crC := store.subscribeRepoChangeRequest(repo)
 	defer store.unsubscribeRepoChangeRequest(repo, crC)
 	store.proposeC <- out
@@ -608,7 +629,7 @@ func (store *stateStore) deleteRepo(repo string) error {
 	if err != nil {
 		return errors.Wrap(err, "Error marshalling deleterepo request")
 	}
-	store.cfg.log.Info("Repo deletion requested")
+	store.cfg.log.Infof("Repo deletion requested of %s", repo)
 	crC := store.subscribeRepoChangeRequest(repo)
 	defer store.unsubscribeRepoChangeRequest(repo, crC)
 	store.proposeC <- out
@@ -635,7 +656,7 @@ func (store *stateStore) editRepo(repo string, request []byte) error {
 	if err != nil {
 		return errors.Wrap(err, "Error marshalling editrepo request")
 	}
-	store.cfg.log.Info("Repo editing requested")
+	store.cfg.log.Infof("Repo editing requested on %s", repo)
 	crC := store.subscribeRepoChangeRequest(repo)
 	defer store.unsubscribeRepoChangeRequest(repo, crC)
 	store.proposeC <- out

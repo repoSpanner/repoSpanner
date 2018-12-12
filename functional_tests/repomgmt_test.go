@@ -8,8 +8,9 @@ import (
 )
 
 type testRepoInfo struct {
-	name   string
-	public bool
+	name    string
+	public  bool
+	symrefs map[string]string
 }
 
 func verifyReposExist(t *testing.T, node nodeNrType, repos ...testRepoInfo) {
@@ -31,6 +32,36 @@ func verifyReposExist(t *testing.T, node nodeNrType, repos ...testRepoInfo) {
 				retrieved.Public,
 				repo.public,
 			)
+		}
+		if repo.symrefs == nil {
+			// Default: HEAD -> refs/heads/master
+			if len(retrieved.Symrefs) != 1 {
+				t.Errorf("Unexpected number of symrefs retrieved: %d", len(retrieved.Symrefs))
+			}
+			target, ok := retrieved.Symrefs["HEAD"]
+			if !ok {
+				t.Errorf("Unable to find HEAD")
+			} else {
+				if target != "refs/heads/master" {
+					t.Errorf("HEAD pointed to %s instead of master", target)
+				}
+			}
+		} else {
+			for symref, correcttarget := range repo.symrefs {
+				target, hasref := retrieved.Symrefs[symref]
+				if !hasref {
+					t.Errorf("Missing symref %s", symref)
+					continue
+				}
+
+				if target != correcttarget {
+					t.Errorf("Symref %s points to %s instead of %s", symref, target, correcttarget)
+				}
+			}
+
+			if len(retrieved.Symrefs) != len(repo.symrefs) {
+				t.Error("Too many symrefs returned")
+			}
 		}
 	}
 
@@ -89,6 +120,32 @@ func TestRepoManagement(t *testing.T) {
 	r1 := testRepoInfo{name: "test1", public: false}
 	r2 := testRepoInfo{name: "test2", public: true}
 	r3 := testRepoInfo{name: "test3", public: false}
+	verifyReposExist(t, nodea, r1, r2, r3)
+	verifyReposExist(t, nodeb, r1, r2, r3)
+	verifyReposExist(t, nodec, r1, r2, r3)
+
+	// Create a symrefs
+	runCommand(t, nodea.Name(),
+		"admin", "repo", "edit", "test1", "foo=bar")
+	r1.symrefs = make(map[string]string)
+	r1.symrefs["HEAD"] = "refs/heads/master"
+	r1.symrefs["foo"] = "bar"
+	verifyReposExist(t, nodea, r1, r2, r3)
+	verifyReposExist(t, nodeb, r1, r2, r3)
+	verifyReposExist(t, nodec, r1, r2, r3)
+
+	// Update a symref
+	runCommand(t, nodea.Name(),
+		"admin", "repo", "edit", "test1", "HEAD=refs/foo/nobody")
+	r1.symrefs["HEAD"] = "refs/foo/nobody"
+	verifyReposExist(t, nodea, r1, r2, r3)
+	verifyReposExist(t, nodeb, r1, r2, r3)
+	verifyReposExist(t, nodec, r1, r2, r3)
+
+	// Delete a symref
+	runCommand(t, nodea.Name(),
+		"admin", "repo", "edit", "test1", "HEAD=")
+	delete(r1.symrefs, "HEAD")
 	verifyReposExist(t, nodea, r1, r2, r3)
 	verifyReposExist(t, nodeb, r1, r2, r3)
 	verifyReposExist(t, nodec, r1, r2, r3)

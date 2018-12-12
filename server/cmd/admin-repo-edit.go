@@ -16,7 +16,7 @@ var adminEditRepoCmd = &cobra.Command{
 	Short: "Repo editing",
 	Long:  `Edit a repository.`,
 	Run:   runAdminEditRepo,
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MinimumNArgs(1),
 }
 
 func addHook(cmd *cobra.Command, req *datastructures.RepoUpdateRequest, reponame, flagname string) {
@@ -87,6 +87,26 @@ func runAdminEditRepo(cmd *cobra.Command, args []string) {
 			addHook(cmd, &request, reponame, f.Name)
 		}
 	})
+
+	if len(args) > 1 {
+		// Parse symref updates
+		symrefupdate := make([]string, 0)
+
+		for _, arg := range args[1:] {
+			if !strings.Contains(arg, "=") {
+				fmt.Println("Symref rename argument", arg, "invalid: no = separator")
+				return
+			}
+			if strings.Contains(arg, " ") {
+				fmt.Println("Symref rename argument", arg, "invalid: contains space")
+				return
+			}
+
+			symrefupdate = append(symrefupdate, arg)
+		}
+
+		request.UpdateRequest[datastructures.RepoUpdateSymref] = strings.Join(symrefupdate, " ")
+	}
 
 	if len(request.UpdateRequest) == 0 {
 		fmt.Println("No update request provided")

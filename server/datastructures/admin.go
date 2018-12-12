@@ -36,6 +36,7 @@ const (
 	RepoUpdateHookPreReceive  RepoUpdateField = "hook-prereceive"
 	RepoUpdateHookUpdate      RepoUpdateField = "hook-update"
 	RepoUpdateHookPostReceive RepoUpdateField = "hook-postreceive"
+	RepoUpdateSymref          RepoUpdateField = "update-symref"
 )
 
 type RepoUpdateRequest struct {
