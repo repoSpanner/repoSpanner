@@ -67,22 +67,29 @@ func getPacketLen(packet []byte) ([]byte, error) {
 	return []byte(len), nil
 }
 
-func exitWithError(errmsg string, extra ...interface{}) {
+func exitWithError(errmsg string, extra ...string) {
 	// When we get here, we have most likely not yet arrived at sending any requests,
 	// or are still at the discovery stage.
 	// Send a plain (non-sidebanded) git packet.
 	// The only moment that this would be wrong
+	if len(extra) > 0 {
+		extras := make([]string, 0)
+		for _, ex := range extra {
+			extras = append(extras, ex)
+		}
+		errmsg = errmsg + ": " + strings.Join(extras, ",")
+	}
 	sendPacket(os.Stdout, []byte("ERR "+errmsg+"\n"))
 	sendFlushPacket(os.Stdout)
 	os.Exit(1)
 }
 
-func checkError(err error, errmsg string, extra ...interface{}) {
+func checkError(err error, errmsg string, extra ...string) {
 	if err == nil {
 		return
 	}
-	extra = append(extra, "error", err)
-	exitWithError(errmsg, extra...)
+	errmsg = errmsg + ": " + err.Error()
+	exitWithError(errmsg)
 }
 
 func callGit(command, repo string) {
@@ -217,7 +224,7 @@ func ExecuteBridge() {
 	}
 
 	if command == "" || repo == "" {
-		exitWithError("Invalid call arguments", "len", len(os.Args))
+		exitWithError("Invalid call arguments", "len", strings.Join(os.Args, " "))
 	}
 
 	if !strings.HasPrefix(command, "git-") {

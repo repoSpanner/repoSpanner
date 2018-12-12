@@ -69,7 +69,6 @@ func bridge(r *http.Request) {
 	checkError(
 		err,
 		"Error bridging request",
-		"request", r,
 	)
 	defer resp.Body.Close()
 	if resp.StatusCode == 404 {
@@ -78,14 +77,13 @@ func bridge(r *http.Request) {
 	if resp.StatusCode != 200 {
 		exitWithError(
 			"Server error",
-			"request", r,
+			"statuscode", string(resp.StatusCode),
 		)
 	}
 	_, err = io.Copy(os.Stdout, resp.Body)
 	checkError(
 		err,
 		"Error streaming response",
-		"request", r,
 	)
 }
 
