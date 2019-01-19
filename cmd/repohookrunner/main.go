@@ -14,7 +14,6 @@ import (
 	"path"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"golang.org/x/net/http2"
 	"repospanner.org/repospanner/server/constants"
@@ -69,7 +68,7 @@ func main() {
 
 	// Before doing anything else, lower privileges
 	if request.User != 0 {
-		err = syscall.Setresuid(request.User, request.User, request.User)
+		err = dropToUser(request.User)
 		failIfError(err, "Error dropping privileges")
 	}
 
