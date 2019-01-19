@@ -2,7 +2,9 @@ package bridge
 
 import (
 	"bytes"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -208,7 +210,8 @@ func ExecuteBridge() {
 	loadConfig()
 
 	// Just call this to make sure we abort loudly early on if the user has no access
-	getCertAndKey()
+	cert, _ := getCertAndKey()
+	checkForNonLeafCert(cert)
 
 	if configuration.BaseURL == "" {
 		exitWithError("Invalid configuration file")
@@ -297,4 +300,24 @@ func getCertAndKey() (string, string) {
 	// Seems there was no configuration for this user, nor default... Abandon all hope
 	exitWithError("User does not have access to this bridge")
 	return "", ""
+}
+
+func checkForNonLeafCert(certpath string) {
+	cts, err := ioutil.ReadFile(certpath)
+	checkError(err, "Error opening client certificate")
+	certblock, rest := pem.Decode(cts)
+	if len(rest) != 0 {
+		exitWithError("Client certificate has unexpected contents")
+	}
+	cert, err := x509.ParseCertificate(certblock.Bytes)
+	checkError(err, "Error parsing client certificate")
+	if cert.IsCA {
+		exitWithError("Client certificate is a CA certificate?")
+	}
+	for _, ku := range cert.ExtKeyUsage {
+		if ku != x509.ExtKeyUsageClientAuth {
+			exitWithError("Client certificate is not a leaf certificate")
+		}
+	}
+	// If everything is OK, we just return and the bridge code will take over
 }
