@@ -324,6 +324,14 @@ func (cfg *Service) verifyNodeCert(rawCerts [][]byte, verifiedChains [][]*x509.C
 	var correctcluster bool
 	var isnode bool
 
+	for _, usage := range peer.ExtKeyUsage {
+		if usage == x509.ExtKeyUsageServerAuth {
+			isnode = true
+		} else {
+			return errors.New("Non-node certificate submitted")
+		}
+	}
+
 	for _, ext := range peer.Extensions {
 		if ext.Id.Equal(constants.OIDRegionName) {
 			if string(ext.Value) == cfg.region {
@@ -338,11 +346,6 @@ func (cfg *Service) verifyNodeCert(rawCerts [][]byte, verifiedChains [][]*x509.C
 				continue
 			}
 			return errors.Errorf("Incorrect cluster name %s found", string(ext.Value))
-		}
-	}
-	for _, usage := range peer.ExtKeyUsage {
-		if usage == x509.ExtKeyUsageServerAuth {
-			isnode = true
 		}
 	}
 
