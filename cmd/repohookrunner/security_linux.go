@@ -1,4 +1,5 @@
 // +build linux
+
 package main
 
 import (
@@ -6,5 +7,5 @@ import (
 )
 
 func dropToUser(user int) error {
-	return syscall.Setresuid(request.User, request.User, request.User)
+	return syscall.Setresuid(user, user, user)
 }
