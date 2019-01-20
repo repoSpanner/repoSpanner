@@ -16,14 +16,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/coreos/etcd/pkg/transport"
 	"github.com/coreos/etcd/raft"
 	"github.com/coreos/pkg/capnslog"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
-
 	"repospanner.org/repospanner/server/constants"
 	"repospanner.org/repospanner/server/storage"
 	"repospanner.org/repospanner/server/utils"
@@ -327,9 +325,10 @@ func (cfg *Service) verifyNodeCert(rawCerts [][]byte, verifiedChains [][]*x509.C
 	for _, usage := range peer.ExtKeyUsage {
 		if usage == x509.ExtKeyUsageServerAuth {
 			isnode = true
-		} else {
-			return errors.New("Non-node certificate submitted")
 		}
+	}
+	if !isnode {
+		return errors.Errorf("Non-node cert used")
 	}
 
 	for _, ext := range peer.Extensions {
@@ -354,9 +353,6 @@ func (cfg *Service) verifyNodeCert(rawCerts [][]byte, verifiedChains [][]*x509.C
 	}
 	if !correctcluster {
 		return errors.Errorf("No cluster extension found")
-	}
-	if !isnode {
-		return errors.Errorf("Non-node cert used")
 	}
 	return nil
 }
