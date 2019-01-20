@@ -8,10 +8,9 @@ import (
 	"os"
 	"path"
 
-	"repospanner.org/repospanner/server/constants"
-
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"repospanner.org/repospanner/server/constants"
 )
 
 var caInfoCmd = &cobra.Command{
@@ -96,7 +95,7 @@ func runCaInfo(cmd *cobra.Command, args []string) {
 		} else if ext.Id.Equal(constants.OIDPermission) {
 			fmt.Println("repoSpanner permission:", string(ext.Value))
 		} else if ext.Id.Equal(constants.OIDRepoName) {
-			fmt.Println("repoSpanner regions:", string(ext.Value))
+			fmt.Println("repoSpanner repo name:", string(ext.Value))
 		}
 	}
 }
