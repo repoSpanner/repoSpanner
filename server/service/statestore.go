@@ -16,6 +16,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
+
 	"repospanner.org/repospanner/server/datastructures"
 	pb "repospanner.org/repospanner/server/protobuf"
 	"repospanner.org/repospanner/server/storage"
