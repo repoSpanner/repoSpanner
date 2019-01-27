@@ -78,8 +78,7 @@ type HookRunRequest struct {
 	PushUUID     string
 	BwrapConfig  map[string]interface{}
 	User         int
-	Hook         string
-	HookObject   string
+	HookObjects  map[string]string
 	Requests     map[string][2]string
 	ClientCaCert string
 	ClientCert   string

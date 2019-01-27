@@ -77,6 +77,31 @@ func (cfg *Service) serveGitReceivePack(ctx context.Context, w http.ResponseWrit
 		return
 	}
 
+	// Prepare hook runners
+	cfg.debugPacket(ctx, rw, "Preparing hook running...")
+	hookrun, err := cfg.prepareHookRunning(
+		ctx,
+		errsender,
+		infosender,
+		reponame,
+		toupdate,
+		hookExtras,
+	)
+	if err != nil {
+		reqlogger.WithError(err).Info("Hook preparing failed")
+		sendSideBandPacket(ctx, w, sideBandProgress, []byte("ERR Hook preparing failed\n"))
+		sendUnpackFail(ctx, w, toupdate, "Hook preparing failed")
+		return
+	}
+	if hookrun == nil {
+		reqlogger.Info("Hook preparing failed, unknown reason")
+		sendSideBandPacket(ctx, w, sideBandProgress, []byte("ERR Hook preparing failed\n"))
+		sendUnpackFail(ctx, w, toupdate, "Hook preparing failed")
+		return
+	}
+	defer hookrun.close()
+
+	// Now get and store objects
 	pusher := projectstore.GetPusher(toupdate.UUID())
 	ctx, cancel := context.WithCancel(ctx)
 	pushresultc := pusher.GetPushResultChannel()
@@ -90,6 +115,7 @@ func (cfg *Service) serveGitReceivePack(ctx context.Context, w http.ResponseWrit
 				sendSideBandPacket(ctx, w, sideBandProgress, []byte("ERR Object sync failed\n"))
 				sendUnpackFail(ctx, w, toupdate, "sync-fail")
 				cancel()
+				return
 			}
 		}
 	}()
@@ -116,6 +142,10 @@ func (cfg *Service) serveGitReceivePack(ctx context.Context, w http.ResponseWrit
 		reqlogger.Debug("Got receive-pack request header")
 
 		deltasqueue, err := ioutil.TempFile("", "repospanner_deltaqueue_")
+		if ctx.Err() != nil {
+			reqlogger.Debug("Connection closed")
+			return
+		}
 		if err != nil {
 			reqlogger.WithError(err).Info("Unable to create deltaqueue")
 			sendSideBandPacket(ctx, w, sideBandProgress, []byte("ERR Internal error\n"))
@@ -214,19 +244,50 @@ func (cfg *Service) serveGitReceivePack(ctx context.Context, w http.ResponseWrit
 	// Inform the pusher we have sent all the objects we're going to send it
 	pusher.Done()
 
+	cfg.debugPacket(ctx, rw, "Finishing hook runner preparation...")
+	err = hookrun.finishPreparing()
+	if err != nil {
+		if ctx.Err() != nil {
+			reqlogger.Debug("Connection closed")
+			return
+		}
+		reqlogger.WithError(err).Info("Hook preparation finish failed")
+		sendSideBandPacket(ctx, w, sideBandProgress, []byte("ERR Hook preparing finish failed\n"))
+		sendUnpackFail(ctx, w, toupdate, "Hook preparation finish failed")
+		return
+	}
+
+	if ctx.Err() != nil {
+		reqlogger.Debug("Connection closed")
+		return
+	}
 	cfg.statestore.AddFakeRefs(reponame, toupdate)
 	defer cfg.statestore.RemoveFakeRefs(reponame, toupdate)
 
-	cfg.debugPacket(ctx, rw, "Running pre-receive hook...")
-	err = cfg.runHook(
-		hookTypePreReceive,
-		errsender,
-		infosender,
-		reponame,
-		toupdate,
-		hookExtras,
-	)
+	cfg.debugPacket(ctx, rw, "Telling hook runner to grab new contents...")
+	err = hookrun.fetchFakeRefs()
 	if err != nil {
+		if ctx.Err() != nil {
+			reqlogger.Debug("Connection closed")
+			return
+		}
+		reqlogger.WithError(err).Info("Hook fetchin failed")
+		sendSideBandPacket(ctx, w, sideBandProgress, []byte("ERR Hook fetching failed\n"))
+		sendUnpackFail(ctx, w, toupdate, "Hook fetching failed")
+		return
+	}
+
+	if ctx.Err() != nil {
+		reqlogger.Debug("Connection closed")
+		return
+	}
+	cfg.debugPacket(ctx, rw, "Running pre-receive hook...")
+	err = hookrun.runHook(hookTypePreReceive)
+	if err != nil {
+		if ctx.Err() != nil {
+			reqlogger.Debug("Connection closed")
+			return
+		}
 		reqlogger.WithError(err).Debug("Pre-receive hook refused push")
 		sendSideBandPacket(ctx, w, sideBandProgress, []byte("ERR Pre-receive hook refused push\n"))
 		sendUnpackFail(ctx, w, toupdate, "pre-receive-hook-refuse")
@@ -234,16 +295,17 @@ func (cfg *Service) serveGitReceivePack(ctx context.Context, w http.ResponseWrit
 	}
 	cfg.debugPacket(ctx, rw, "Pre-receive hook done")
 
+	if ctx.Err() != nil {
+		reqlogger.Debug("Connection closed")
+		return
+	}
 	cfg.debugPacket(ctx, rw, "Running update hook...")
-	err = cfg.runHook(
-		hookTypeUpdate,
-		errsender,
-		infosender,
-		reponame,
-		toupdate,
-		hookExtras,
-	)
+	err = hookrun.runHook(hookTypeUpdate)
 	if err != nil {
+		if ctx.Err() != nil {
+			reqlogger.Debug("Connection closed")
+			return
+		}
 		reqlogger.WithError(err).Debug("Update hook refused push")
 		sendSideBandPacket(ctx, w, sideBandProgress, []byte("ERR Update hook refused push\n"))
 		sendUnpackFail(ctx, w, toupdate, "update-hook-refuse")
@@ -286,14 +348,7 @@ func (cfg *Service) serveGitReceivePack(ctx context.Context, w http.ResponseWrit
 	}
 
 	cfg.debugPacket(ctx, rw, "Running post-receive hook...")
-	err = cfg.runHook(
-		hookTypePostReceive,
-		errsender,
-		infosender,
-		reponame,
-		toupdate,
-		hookExtras,
-	)
+	err = hookrun.runHook(hookTypePostReceive)
 	if err != nil {
 		reqlogger.WithError(err).Debug("Post-receive hook failed")
 	}
