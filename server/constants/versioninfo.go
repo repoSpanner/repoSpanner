@@ -8,6 +8,7 @@ import (
 // These strings will be filled in by build.sh
 var version string
 var gitdescrip string
+var vendordescrip string
 
 func VersionBuiltIn() bool {
 	return version != "" && gitdescrip != ""
@@ -26,8 +27,9 @@ func VersionString() string {
 		suffix = " WITH PROFILING"
 	}
 
-	return fmt.Sprintf("%s running on %s/%s (compiled with %s)%s",
+	return fmt.Sprintf("%s (deps %s) running on %s/%s (compiled with %s)%s",
 		PublicVersionString(),
+		vendordescrip,
 		runtime.GOOS,
 		runtime.GOARCH,
 		runtime.Version(),
