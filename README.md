@@ -87,9 +87,9 @@ Or, again, start the `repospanner.service` unit file.
 Repository access
 -----------------
 
-After this, the service will be available on https://<node.fqdn>/ 
-    
-For git repo pull/push, add a /repo/<repo-name>.git.  
+After this, the service will be available on https://<node.fqdn>/
+
+For git repo pull/push, add a /repo/<repo-name>.git.
 Example clone command for default https port on tcp/443 and repo name being "test"
 
 ```
@@ -120,11 +120,7 @@ install the protobuf compiler:
 
 Then run `go generate ./...` to regenerate the built files.
 
-To run the full test suite, first make sure you have a /etc/hosts entry with:
-
-    127.0.0.1	node1.regiona.repospanner.local node2.regiona.repospanner.local node3.regiona.repospanner.local
-
-Then to actually run all tests, run from the main directory:
+To run the full test suite, run from the main directory:
 
     $ go test ./...
 

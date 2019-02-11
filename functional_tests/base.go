@@ -59,8 +59,8 @@ func setBinaryPaths(t tester) {
 }
 
 const (
-	testCluster = "repospanner.local"
-	testRegion  = "regiona"
+	testCluster = "localdomain"
+	testRegion  = "localhost"
 
 	insecureKeysFlag       = "--very-insecure-weak-keys"
 	skipNameConstraintFlag = "--no-name-constraint"
@@ -630,7 +630,7 @@ func createTestConfig(t tester, node string, nodenr nodeNrType, extras ...string
 	examplecfg = strings.Replace(
 		examplecfg,
 		"/ca/public.",
-		"/ca/nodea.regiona.",
+		"/ca/nodea.localhost.",
 		-1,
 	)
 	examplecfg = strings.Replace(
@@ -649,6 +649,12 @@ func createTestConfig(t tester, node string, nodenr nodeNrType, extras ...string
 		examplecfg,
 		"nodea",
 		node,
+		-1,
+	)
+	examplecfg = strings.Replace(
+		examplecfg,
+		"regiona",
+		testRegion,
 		-1,
 	)
 	examplecfg = strings.Replace(
