@@ -8,13 +8,13 @@ import (
 func nodeInfoVerification(t *testing.T, node nodeNrType) {
 	nodeinfo, _ := _runCommand(t, node.Name(), "admin", "nodestatus", "--json")
 	t.Log("Node info: ", nodeinfo)
-	if !strings.Contains(nodeinfo, "https://node1.localhost.localdomain:1444") {
+	if !strings.Contains(nodeinfo, nodeNrType(1).RPCBase()) {
 		t.Error("Node A url not in node info")
 	}
-	if !strings.Contains(nodeinfo, "https://node2.localhost.localdomain:2444") {
+	if !strings.Contains(nodeinfo, nodeNrType(2).RPCBase()) {
 		t.Error("Node B url not in node info")
 	}
-	if !strings.Contains(nodeinfo, "https://node3.localhost.localdomain:3444") {
+	if !strings.Contains(nodeinfo, nodeNrType(3).RPCBase()) {
 		t.Error("Node C url not in node info")
 	}
 }
