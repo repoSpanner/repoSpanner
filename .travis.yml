@@ -1,5 +1,6 @@
 language: go
-sudo: false
+# We modify /etc/hosts	sudo: false
+sudo: true
 git:
   # We need the full repo for the metatest
   depth: false
@@ -22,6 +23,8 @@ go_import_path: repospanner.org/repospanner
 # In no way would I suggest doing curl | sh normally.... But it's not my environment
 install:
 - curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
+before_script:
+- echo "127.0.0.1   node1.localhost.localdomain node2.localhost.localdomain node3.localhost.localdomain" | sudo tee -a /etc/hosts
 script:
 - dep ensure
 - ./build.sh -tags prof
