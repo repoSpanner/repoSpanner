@@ -134,13 +134,13 @@ func (cfg *Service) loadStateStore(spawning bool, joinnode string, directory str
 		if err = os.MkdirAll(store.directory, 0755); err != nil {
 			return
 		}
-		if err = os.Mkdir(path.Join(store.directory, "async-outqueues"), 0755); err != nil {
+		if err = os.MkdirAll(path.Join(store.directory, "async-outqueues"), 0755); err != nil {
 			return
 		}
-		if err = os.Mkdir(path.Join(store.directory, "repoinfos"), 0755); err != nil {
+		if err = os.MkdirAll(path.Join(store.directory, "repoinfos"), 0755); err != nil {
 			return
 		}
-		if err = os.Mkdir(path.Join(store.directory, "objectsyncs"), 0755); err != nil {
+		if err = os.MkdirAll(path.Join(store.directory, "objectsyncs"), 0755); err != nil {
 			return
 		}
 
