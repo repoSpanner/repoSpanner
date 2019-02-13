@@ -13,11 +13,10 @@ import (
 	"runtime"
 	"time"
 
-	"repospanner.org/repospanner/server/constants"
-	"repospanner.org/repospanner/server/service"
-
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"repospanner.org/repospanner/server/constants"
+	"repospanner.org/repospanner/server/service"
 )
 
 var caInitCmd = &cobra.Command{
@@ -26,6 +25,14 @@ var caInitCmd = &cobra.Command{
 	Long:  `Generating a full repoSpanner CA.`,
 	Run:   runCaInit,
 	Args:  cobra.ExactArgs(1),
+}
+
+func randomCN(base string) string {
+	return fmt.Sprintf(
+		"%s %s",
+		base,
+		time.Now().Format(time.RFC3339Nano),
+	)
 }
 
 func runCaInit(cmd *cobra.Command, args []string) {
@@ -52,6 +59,11 @@ func runCaInit(cmd *cobra.Command, args []string) {
 	subname := pkix.Name{
 		CommonName: "repoSpanner " + clustername + " cluster CA",
 	}
+	if randcn, _ := cmd.Flags().GetBool("random-cn"); randcn {
+		subname = pkix.Name{
+			CommonName: randomCN("repoSpanner " + clustername + " cluster CA"),
+		}
+	}
 	fmt.Println("Subject/issuer name: ", subname)
 	years, err := cmd.Flags().GetInt("years")
 	if err != nil {
@@ -76,9 +88,9 @@ func runCaInit(cmd *cobra.Command, args []string) {
 			permissionExtension(constants.CertPermissionCA),
 		},
 		BasicConstraintsValid: true,
-		IsCA:           true,
-		MaxPathLen:     0,
-		MaxPathLenZero: true,
+		IsCA:                  true,
+		MaxPathLen:            0,
+		MaxPathLenZero:        true,
 	}
 
 	if !skipNameConstraint {
@@ -135,4 +147,9 @@ func init() {
 	caInitCmd.Flags().Int("years", 10, "Validity of the cluster CA crtificate")
 	caInitCmd.Flags().Bool("no-name-constraint", false,
 		"Do not add the DNSName constraint. Pass this if you expect to run nodes compiled with Go1.9 or earlier")
+
+	caInitCmd.Flags().Bool("random-cn", false,
+		"Generate a random Common Name for the certificate. Used in special cases")
+	caInitCmd.Flags().MarkHidden("random-cn")
+
 }
