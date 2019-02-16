@@ -3,7 +3,6 @@ Security
 
 This documents some of the security assumptions/goals that repoSpanner should adhere to, and provides some information on secure deployments.
 
-
 Listeners
 ---------
 
@@ -16,7 +15,6 @@ It can be firewalled so that only the other nodes and each node itself can commu
 The user endpoint is used for requests by user clients (be that Git, repobridge, or any other client).
 TLS client certificates are optional, although unauthenticated requests are only able to clone public repositories and get the high-level version information of the system.
 This endpoint should be available from clients who need access to the repositories on this system.
-
 
 Reporting a vulnerability
 -------------------------

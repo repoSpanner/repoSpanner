@@ -313,15 +313,15 @@ func (d *clusterStorageProjectPushDriverInstance) runPeerSyncer(peerid uint64) {
 				}
 
 				return
-			} else {
-				// We have no object right now, but more might be inbound.
-				// Wait until we get notified the queues have changed, and then retry
-				mylog.Debug("Nothing to sync out, but not done. Wait")
-				d.objectSyncNewObjects.Wait()
-				d.objectSyncNewObjects.L.Unlock()
-				mylog.Debug("We were kicked")
-				continue
 			}
+
+			// We have no object right now, but more might be inbound.
+			// Wait until we get notified the queues have changed, and then retry
+			mylog.Debug("Nothing to sync out, but not done. Wait")
+			d.objectSyncNewObjects.Wait()
+			d.objectSyncNewObjects.L.Unlock()
+			mylog.Debug("We were kicked")
+			continue
 		}
 
 		mylog := mylog.WithField("objectid", nextentry)

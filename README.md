@@ -15,7 +15,6 @@ push failing due to an attempt to push to the failed node.
 *Note*: As a consequence of this, it is strongly suggested to deploy
 regions with odd numbers of nodes.
 
-
 Build repoSpanner
 -----------------
 
@@ -26,7 +25,6 @@ You will need the Go dep tool installed to build repoSpanner:
 Followed by that:
 
     $ ./build.sh
-
 
 Deployment
 ----------
@@ -83,7 +81,6 @@ And then run:
 
 Or, again, start the `repospanner.service` unit file.
 
-
 Repository access
 -----------------
 
@@ -107,7 +104,6 @@ in /etc/repospanner.
 This client will automatically revert to plain git if it determines the repo
 that is being pushed to is not a repospanner repository.
 
-
 Development
 -----------
 
@@ -124,15 +120,12 @@ To run the full test suite, run from the main directory:
 
     $ go test ./...
 
-
 Tests
 -----
 
 The project comes with a decent functional test suite.  Explore the
 `repospanner/functional_tests` to see the variety of tests that you can
 run.
-
-
 
 Contributions
 -------------
@@ -141,7 +134,6 @@ Contributions are most welcome.
 Please make sure to add a `Signed-Off-By` line in your git commit to indicate
 you agree to the Developer Certificate of Origin (DCO) as quoted below.
 To do this, simple add the "-s" flag to your git commit, like: `git commit -s`.
-
 
 Developer Certificate of Origin
 --------------------------------

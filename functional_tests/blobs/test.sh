@@ -1,8 +1,8 @@
 #!/bin/bash
 echo "RUNNING HOOK"
 echo "PS: $$"
-echo "ID: `id`"
-echo "Hostname: `hostname`"
+echo "ID: $(id)"
+echo "Hostname: $(hostname)"
 env
 echo "Args: $@"
 echo "STDIN FOLLOWING"
