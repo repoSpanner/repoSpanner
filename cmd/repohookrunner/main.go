@@ -178,12 +178,12 @@ func getHookArgs(request datastructures.HookRunRequest, branch string, req [2]st
 	buf := bytes.NewBuffer(nil)
 	if request.Hook == "update" {
 		return []string{branch, req[0], req[1]}, buf
-	} else {
-		for branch, req := range request.Requests {
-			fmt.Fprintf(buf, "%s %s %s\n", req[0], req[1], branch)
-		}
-		return []string{}, buf
 	}
+
+	for branch, req := range request.Requests {
+		fmt.Fprintf(buf, "%s %s %s\n", req[0], req[1], branch)
+	}
+	return []string{}, buf
 }
 
 func runHook(request datastructures.HookRunRequest, workdir string, branch string, req [2]string) {

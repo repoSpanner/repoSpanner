@@ -9,7 +9,6 @@ There are some differences in hooks running inside repoSpanner as compared
 to standard Git hooks, but in general any existing hook should work as-is,
 as long as they don't try to write to the repository themselves.
 
-
 Run environment
 ---------------
 

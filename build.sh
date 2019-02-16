@@ -10,9 +10,9 @@ then
 	git diff Gopkg.lock
 fi
 
-export VERSION="`cat VERSION`"
-export GITDESCRIP="`git describe --long --tags --dirty --always`"
-export VENDORDESCRIP="`find vendor -type f | xargs cat | sha1sum | tr -d '\n' | sed -e 's/  -//'`"
+export VERSION="$(cat VERSION)"
+export GITDESCRIP="$(git describe --long --tags --dirty --always)"
+export VENDORDESCRIP="$(find vendor -type f | xargs cat | sha1sum | tr -d '\n' | sed -e 's/  -//')"
 
 (
     cd cmd/repospanner/
