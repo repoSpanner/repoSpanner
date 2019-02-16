@@ -297,10 +297,14 @@ func (cfg *Service) Shutdown() {
 	}
 
 	cfg.sync.Stop()
-	cfg.httpServer.Shutdown(context.Background())
+	if cfg.httpServer != nil {
+		cfg.httpServer.Shutdown(context.Background())
+	}
 	var closer struct{}
 	cfg.statestore.raftnode.stopc <- closer
-	cfg.rpcServer.Shutdown(context.Background())
+	if cfg.rpcServer != nil {
+		cfg.rpcServer.Shutdown(context.Background())
+	}
 }
 
 func (cfg *Service) findRPCURL() string {
@@ -431,7 +435,10 @@ func (cfg *Service) RunServer(spawning bool, joinnode string) error {
 	return nil
 }
 
-const numServices = 4
+const (
+	numServicesSpawning = 2
+	numServicesNormal   = 4
+)
 
 func (cfg *Service) runServer(spawning bool, joinnode string) error {
 	if err := cfg.Initialize(); err != nil {
@@ -444,6 +451,12 @@ func (cfg *Service) runServer(spawning bool, joinnode string) error {
 
 	if err := cfg.runPreFlightChecks(); err != nil {
 		return err
+	}
+
+	numServices := numServicesNormal
+	creating := spawning || joinnode != ""
+	if creating {
+		numServices = numServicesSpawning
 	}
 
 	cfg.log.Info("Starting serving")
@@ -460,10 +473,14 @@ func (cfg *Service) runServer(spawning bool, joinnode string) error {
 	errchan := make(chan error)
 	go cfg.sync.Run(errchan)
 	go cfg.statestore.RunStateStore(errchan, raftstarted)
-	go cfg.runHTTP(errchan)
+	if !creating {
+		go cfg.runHTTP(errchan)
+	}
 
 	<-raftstarted
-	go cfg.runRPC(errchan)
+	if !creating {
+		go cfg.runRPC(errchan)
+	}
 
 	cfg.isrunning = true
 
