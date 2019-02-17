@@ -222,7 +222,7 @@ func (t *treeStorageProjectPushDriverInstance) StageObject(objtype ObjectType, o
 	f, err := ioutil.TempFile(t.t.t.dirname, t.t.p+"_stage_")
 	if os.IsNotExist(err) {
 		// Seems the project folder didn't exist yet, create it
-		err = os.MkdirAll(path.Join(t.t.t.dirname, t.t.p), 0755)
+		err = os.MkdirAll(path.Join(t.t.t.dirname, t.t.p), 0775)
 		if err != nil {
 			return nil, err
 		}
@@ -273,7 +273,7 @@ func (t *treeStorageProjectDriverStagedObject) Finalize(objid ObjectID) (ObjectI
 		// File did not yet exist, write it
 		err := os.Rename(t.f.Name(), t.p.getObjPath(calced))
 		if os.IsNotExist(err) {
-			err = os.MkdirAll(path.Dir(destpath), 0755)
+			err = os.MkdirAll(path.Dir(destpath), 0775)
 			if err != nil {
 				return ZeroID, err
 			}
