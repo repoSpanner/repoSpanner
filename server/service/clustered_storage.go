@@ -336,7 +336,7 @@ func (d *clusterStorageProjectPushDriverInstance) runPeerSyncer(peerid uint64) {
 
 			if retryfile == nil {
 				if _, err := os.Stat(retrydir); os.IsNotExist(err) {
-					err := os.MkdirAll(retrydir, 0755)
+					err := os.MkdirAll(retrydir, 0775)
 					if err != nil {
 						mylog.WithError(err).Info("Error creating retry dir")
 						break

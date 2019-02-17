@@ -131,16 +131,16 @@ func (cfg *Service) loadStateStore(spawning bool, joinnode string, directory str
 			return
 		}
 		cfg.log.Info("No state existed, initializing")
-		if err = os.MkdirAll(store.directory, 0755); err != nil {
+		if err = os.MkdirAll(store.directory, 0775); err != nil {
 			return
 		}
-		if err = os.MkdirAll(path.Join(store.directory, "async-outqueues"), 0755); err != nil {
+		if err = os.MkdirAll(path.Join(store.directory, "async-outqueues"), 0775); err != nil {
 			return
 		}
-		if err = os.MkdirAll(path.Join(store.directory, "repoinfos"), 0755); err != nil {
+		if err = os.MkdirAll(path.Join(store.directory, "repoinfos"), 0775); err != nil {
 			return
 		}
-		if err = os.MkdirAll(path.Join(store.directory, "objectsyncs"), 0755); err != nil {
+		if err = os.MkdirAll(path.Join(store.directory, "objectsyncs"), 0775); err != nil {
 			return
 		}
 
@@ -255,7 +255,7 @@ func (store *stateStore) Save() error {
 	if err != nil {
 		return err
 	}
-	err = ioutil.WriteFile(path.Join(store.directory, "state.json"), cts, 0600)
+	err = ioutil.WriteFile(path.Join(store.directory, "state.json"), cts, 0660)
 	if err != nil {
 		return err
 	}
