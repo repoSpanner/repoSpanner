@@ -132,9 +132,17 @@ func isRawGitRepo(path string) (rawgit bool, rsname string, err error) {
 	return
 }
 
+func loadURLAndCAFromEnv(allenv bool) {
+	if allenv || configuration.BaseURL == ":FROMENV:" {
+		configuration.BaseURL = os.Getenv("REPOBRIDGE_BASEURL")
+	}
+	if allenv || configuration.Ca == ":FROMENV:" {
+		configuration.Ca = os.Getenv("REPOBRIDGE_CA")
+	}
+}
+
 func loadConfigFromEnv() {
-	configuration.BaseURL = os.Getenv("REPOBRIDGE_BASEURL")
-	configuration.Ca = os.Getenv("REPOBRIDGE_CA")
+	loadURLAndCAFromEnv(true)
 	configuration.Certs = make(map[string]map[string]string)
 	configuration.Certs["_default_"] = make(map[string]string)
 	configuration.Certs["_default_"]["cert"] = os.Getenv("REPOBRIDGE_CERT")
@@ -153,6 +161,8 @@ func loadConfig() {
 		checkError(err, "Error reading configuration")
 		err = json.Unmarshal(cts, &configuration)
 		checkError(err, "Error parsing configuration")
+
+		loadURLAndCAFromEnv(false)
 	}
 
 	if configuration.Extras == nil {
