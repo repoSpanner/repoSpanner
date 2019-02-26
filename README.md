@@ -18,11 +18,7 @@ regions with odd numbers of nodes.
 Build repoSpanner
 -----------------
 
-You will need the Go dep tool installed to build repoSpanner:
-
-    $ dnf install dep
-
-Followed by that:
+Make sure you have a Go toolchain available, and run:
 
     $ ./build.sh
 
