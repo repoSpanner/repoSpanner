@@ -187,7 +187,7 @@ func (rc *stateRaftNode) loadSnapshot() *raftpb.Snapshot {
 
 func (rc *stateRaftNode) openWAL(snapshot *raftpb.Snapshot) *wal.WAL {
 	if !wal.Exist(rc.waldir) {
-		if err := os.Mkdir(rc.waldir, 0770); err != nil {
+		if err := os.MkdirAll(rc.waldir, 0770); err != nil {
 			log.Fatalf("cannot create dir for wal (%v)", err)
 		}
 
