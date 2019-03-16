@@ -17,7 +17,7 @@ var adminNodeInfoCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(0),
 }
 
-const warnTime = 5 * time.Second
+const warnTime = 10 * time.Second
 const errTime = 15 * time.Second
 
 func exitStatus(d time.Duration) {
@@ -39,9 +39,9 @@ func outputRawStatus(resp datastructures.NodeStatus, timesinceping time.Duration
 func outputNagiosStatus(resp datastructures.NodeStatus, timesinceping time.Duration) {
 	msg := fmt.Sprintf("Node %s has last pinged %s ago", resp.NodeName, timesinceping.Truncate(time.Second))
 
-	if timesinceping >= (15 * time.Second) {
+	if timesinceping >= errTime {
 		fmt.Println("CRITICAL:", msg)
-	} else if timesinceping >= (5 * time.Second) {
+	} else if timesinceping >= warnTime {
 		fmt.Println("WARNING:", msg)
 	} else {
 		fmt.Println("OK:", msg)
