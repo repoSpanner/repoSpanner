@@ -1,7 +1,6 @@
 module repospanner.org/repospanner
 
 require (
-	github.com/BurntSushi/toml v0.3.1 // indirect
 	github.com/coreos/etcd v3.3.12+incompatible
 	github.com/coreos/go-systemd v0.0.0-20181031085051-9002847aa142 // indirect
 	github.com/coreos/pkg v0.0.0-20180108230652-97fdf19511ea
@@ -24,4 +23,5 @@ require (
 	golang.org/x/net v0.0.0-20181201002055-351d144fa1fc
 	golang.org/x/sys v0.0.0-20190209173611-3b5209105503 // indirect
 	golang.org/x/time v0.0.0-20181108054448-85acf8d2951c // indirect
+	google.golang.org/grpc v1.19.0 // indirect
 )

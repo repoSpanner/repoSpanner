@@ -320,7 +320,7 @@ func performCloneEditPushRecloneWithMajorityOfflineTest(t *testing.T, method clo
 
 	// Push again. This should fail, since a majority is offline.
 	pushout = runFailingRawCommand(t, "git", wdir2, nil, "push")
-	if !strings.Contains(pushout, "remote: ERR Object sync failed") {
+	if !strings.Contains(pushout, "remote: ERR Error syncing object out to enough nodes") {
 		t.Fatal("Pushing failed for different reason")
 	}
 
