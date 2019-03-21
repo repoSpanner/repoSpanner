@@ -5,11 +5,8 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
-	"os"
-	"path"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"repospanner.org/repospanner/server/constants"
 )
 
@@ -34,25 +31,20 @@ func determineCertType(cert *x509.Certificate) string {
 }
 
 func runCaInfo(cmd *cobra.Command, args []string) {
-	capath := viper.GetString("ca.path")
 	certpath := args[0]
-
-	// Checks
-	if capath == "" {
-		panic("No ca path configured")
-	}
-	if _, err := os.Stat(capath); err == os.ErrNotExist {
-		panic("CA path does not exist")
-	}
+	capath, _ := cmd.Flags().GetString("cacert")
 
 	// Read files
 	certpem, err := ioutil.ReadFile(certpath)
 	if err != nil {
 		panic(err)
 	}
-	capem, err := ioutil.ReadFile(path.Join(capath, "ca.crt"))
-	if err != nil {
-		panic(err)
+	var capem []byte
+	if capath != "" {
+		capem, err = ioutil.ReadFile(capath)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	// Parse certificates
@@ -64,19 +56,27 @@ func runCaInfo(cmd *cobra.Command, args []string) {
 	if err != nil {
 		panic(err)
 	}
-	cablock, rest := pem.Decode(capem)
-	if len(rest) != 0 {
-		panic("More data in CA file than expected")
-	}
-	ca, err := x509.ParseCertificate(cablock.Bytes)
-	if err != nil {
-		panic(err)
-	}
 
-	// Verify cert is signed by CA
-	err = cert.CheckSignatureFrom(ca)
-	if err != nil {
-		fmt.Println("WARNING: Certificate is not signed by CA:", err)
+	// Perform CA checks
+	if capem != nil {
+		cablock, rest := pem.Decode(capem)
+		if len(rest) != 0 {
+			panic("More data in CA file than expected")
+		}
+		ca, err := x509.ParseCertificate(cablock.Bytes)
+		if err != nil {
+			panic(err)
+		}
+
+		// Verify cert is signed by CA
+		err = cert.CheckSignatureFrom(ca)
+		if err == nil {
+			fmt.Println("CA signed check passed")
+		} else {
+			fmt.Println("WARNING: Certificate is not signed by CA:", err)
+		}
+	} else {
+		fmt.Println("NOTE: CA certificate path not passed, CA signed check not performed")
 	}
 
 	fmt.Println("Certificate information:")
@@ -101,5 +101,6 @@ func runCaInfo(cmd *cobra.Command, args []string) {
 }
 
 func init() {
+	caInfoCmd.Flags().String("cacert", "", "CA certificate to verify against")
 	caCmd.AddCommand(caInfoCmd)
 }
