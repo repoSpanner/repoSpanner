@@ -64,6 +64,12 @@ func resolveCompression(r *http.Request, reqlogger *logrus.Entry) *logrus.Entry 
 }
 
 func (cfg *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	defer func() {
+		if r := recover(); r != nil {
+			cfg.log.Error("Recovered from request panic", r)
+		}
+	}()
+
 	ctx := cfg.ctxFromReq(w, r, "gitservice")
 	reqlogger := loggerFromCtx(ctx)
 	perminfo, _ := permFromCtx(ctx)
