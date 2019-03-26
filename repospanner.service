@@ -2,6 +2,9 @@
 Description=repoSpanner
 After=network.target
 
+[Install]
+WantedBy=multi-user.target
+
 [Service]
 Type=simple
 ExecStart=/usr/local/bin/repospanner serve
