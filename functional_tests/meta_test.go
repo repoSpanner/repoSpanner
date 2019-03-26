@@ -24,8 +24,11 @@ func performMetaTest(t *testing.T, method cloneMethod) {
 	repodir := runRawCommand(t, "git", "", nil, "rev-parse", "--show-toplevel")
 	repodir = strings.Trim(repodir, "\n")
 
+	// Make sure the master ref exists
+	_runRawCommand(t, "git", repodir, nil, "branch", "master", "remotes/origin/master")
+
 	// Get the master ref
-	masterref := runRawCommand(t, "git", repodir, nil, "rev-parse", "master")
+	masterref := runRawCommand(t, "git", repodir, nil, "rev-parse", "refs/heads/master")
 
 	// Create a repo that's cloned so it's setup
 	wdir1 := cloneBare(t, method, nodea, "repoSpanner", "admin", true)
@@ -44,7 +47,7 @@ func performMetaTest(t *testing.T, method cloneMethod) {
 
 	// And reclone
 	wdir2 := clone(t, method, nodea, "repoSpanner", "admin", true)
-	clonedmasterref := runRawCommand(t, "git", wdir2, nil, "rev-parse", "master")
+	clonedmasterref := runRawCommand(t, "git", wdir2, nil, "rev-parse", "refs/heads/master")
 
 	// And check
 	if masterref != clonedmasterref {
