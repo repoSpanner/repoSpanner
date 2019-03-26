@@ -16,7 +16,6 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
-
 	"repospanner.org/repospanner/server/datastructures"
 	pb "repospanner.org/repospanner/server/protobuf"
 	"repospanner.org/repospanner/server/storage"
@@ -315,12 +314,14 @@ func (store *stateStore) RunStateStore(errchan chan<- error, startedC chan<- str
 
 func (store *stateStore) sendPing() error {
 	timestamp := time.Now().UTC().UnixNano()
+	features := pb.SupportedFeatures()
 	creq := &pb.ChangeRequest{
 		Ctype: pb.ChangeRequest_PING.Enum(),
 		Pingmsg: &pb.PingMessage{
 			Pingnode:     &store.NodeID,
 			Timestamp:    &timestamp,
 			AppliedIndex: &store.raftnode.appliedIndex,
+			FeatureBits:  &features,
 		},
 	}
 	out, err := proto.Marshal(creq)

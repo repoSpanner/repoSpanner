@@ -2,6 +2,8 @@ syntax = "proto2";
 
 package protobuf;
 
+import "pingmessage.proto";
+
 message UpdateRequest {
     required string ref = 1;
     required string from = 2;
@@ -28,12 +30,6 @@ message EditRepoRequest {
 
 message DeleteRepoRequest {
     required string reponame = 1;
-}
-
-message PingMessage {
-    required uint64 pingnode = 1;
-    required int64 timestamp = 2;
-    required uint64 appliedIndex = 3;
 }
 
 message ChangeRequest {
