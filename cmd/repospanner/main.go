@@ -1,4 +1,4 @@
-//go:generate protoc -I ../../server/protobuf --go_out=../../server/protobuf ../../server/protobuf/pushrequest.proto
+//go:generate protoc -I ../../server/protobuf --go_out=../../server/protobuf ../../server/protobuf/pushrequest.proto ../../server/protobuf/pingmessage.proto
 
 package main
 
