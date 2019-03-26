@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/sha1"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -115,6 +116,22 @@ func (cfg *Service) serveGitUploadPack(ctx context.Context, w http.ResponseWrite
 	cfg.maybeSayHello(ctx, rw)
 	cfg.debugPacket(ctx, rw, "Building packfile")
 
+	numObjectsPacked := 0
+	reportObjectPacked := func() {
+		numObjectsPacked++
+		if numObjectsPacked%100 == 0 {
+			sendSideBandPacket(
+				ctx,
+				rw,
+				sideBandProgress,
+				[]byte(fmt.Sprintf(
+					"Packed %d objects...\r",
+					numObjectsPacked,
+				)),
+			)
+		}
+	}
+
 	var commitList []storage.ObjectID
 	recursive := false
 	if commitsToSend == nil {
@@ -125,7 +142,7 @@ func (cfg *Service) serveGitUploadPack(ctx context.Context, w http.ResponseWrite
 		commitList = commitsToSend.List()
 	}
 
-	packfile, numobjects, err := writeTemporaryPackFile(projectstore, commitList, commonObjects, recursive)
+	packfile, numobjects, err := writeTemporaryPackFile(reportObjectPacked, projectstore, commitList, commonObjects, recursive)
 	if err != nil {
 		panic(err)
 	}

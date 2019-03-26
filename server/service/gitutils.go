@@ -1152,7 +1152,9 @@ func buildPackHeader(numo uint32) (buf []byte) {
 	return
 }
 
-func writeTemporaryPackFile(p storage.ProjectStorageDriver, commits []storage.ObjectID, commonobjects objectIDSearcher, recursive bool) (packfile *os.File, numobjects uint32, err error) {
+type packedReportFunc func()
+
+func writeTemporaryPackFile(r packedReportFunc, p storage.ProjectStorageDriver, commits []storage.ObjectID, commonobjects objectIDSearcher, recursive bool) (packfile *os.File, numobjects uint32, err error) {
 	packfile, err = ioutil.TempFile("", "repospanner_pack_")
 	if err != nil {
 		return
@@ -1179,7 +1181,7 @@ func writeTemporaryPackFile(p storage.ProjectStorageDriver, commits []storage.Ob
 	written := newObjectIDSearch()
 	for _, commit := range commits {
 		var numObjectsInCommit uint32
-		numObjectsInCommit, err = writeCommitOrTagToPack(packfile, p, commit, written, commonobjects, recursive)
+		numObjectsInCommit, err = writeCommitOrTagToPack(packfile, r, p, commit, written, commonobjects, recursive)
 		if err != nil {
 			return
 		}
@@ -1243,7 +1245,7 @@ func writeObjectHeader(w io.Writer, objtype storage.ObjectType, objsize uint) er
 	return nil
 }
 
-func writeTreeToPack(w io.Writer, p storage.ProjectStorageDriver, treeid storage.ObjectID, written objectIDSearcher, commonobjects objectIDSearcher) (uint32, error) {
+func writeTreeToPack(w io.Writer, rep packedReportFunc, p storage.ProjectStorageDriver, treeid storage.ObjectID, written objectIDSearcher, commonobjects objectIDSearcher) (uint32, error) {
 	if written.Contains(treeid) {
 		// This tree was probably already somewhere else in the chain, and has already been sent
 		return 0, nil
@@ -1252,6 +1254,7 @@ func writeTreeToPack(w io.Writer, p storage.ProjectStorageDriver, treeid storage
 		// This tree was determined to be already on the client
 		return 0, nil
 	}
+	rep()
 	written.Add(treeid)
 
 	objtype, objsize, r, err := p.ReadObject(treeid)
@@ -1285,7 +1288,7 @@ func writeTreeToPack(w io.Writer, p storage.ProjectStorageDriver, treeid storage
 	var entriessent uint32 = 1
 	for _, entry := range treader.info.entries {
 		if entry.isGitSubmodule() {
-			numsent, err := writeCommitOrTagToPack(w, p, entry.objectid, written, commonobjects, true)
+			numsent, err := writeCommitOrTagToPack(w, rep, p, entry.objectid, written, commonobjects, true)
 			if err == nil {
 				entriessent += numsent
 			} else if err == storage.ErrObjectNotFound {
@@ -1296,7 +1299,7 @@ func writeTreeToPack(w io.Writer, p storage.ProjectStorageDriver, treeid storage
 			}
 		} else if entry.mode.IsDir() {
 			// This is a subtree
-			numsent, err := writeTreeToPack(w, p, entry.objectid, written, commonobjects)
+			numsent, err := writeTreeToPack(w, rep, p, entry.objectid, written, commonobjects)
 			if err != nil {
 				return entriessent, err
 			}
@@ -1349,12 +1352,13 @@ func writeBlobToPack(w io.Writer, p storage.ProjectStorageDriver, blobid storage
 	return
 }
 
-func writeCommitOrTagToPack(w io.Writer, p storage.ProjectStorageDriver, commitid storage.ObjectID, written objectIDSearcher, commonobjects objectIDSearcher, recursive bool) (uint32, error) {
+func writeCommitOrTagToPack(w io.Writer, rep packedReportFunc, p storage.ProjectStorageDriver, commitid storage.ObjectID, written objectIDSearcher, commonobjects objectIDSearcher, recursive bool) (uint32, error) {
 	if written.Contains(commitid) {
 		return 0, nil
 	} else if commonobjects.Contains(commitid) {
 		return 0, nil
 	}
+	rep()
 
 	objtype, objsize, r, err := p.ReadObject(commitid)
 	if err != nil {
@@ -1385,7 +1389,7 @@ func writeCommitOrTagToPack(w io.Writer, p storage.ProjectStorageDriver, commiti
 	if objtype == storage.ObjectTypeCommit {
 		cominf := parseCommitInfo(creader.headers)
 		if cominf.tree != "" {
-			written, err := writeTreeToPack(w, p, cominf.tree, written, commonobjects)
+			written, err := writeTreeToPack(w, rep, p, cominf.tree, written, commonobjects)
 			if err != nil {
 				return 0, err
 			}
@@ -1393,7 +1397,7 @@ func writeCommitOrTagToPack(w io.Writer, p storage.ProjectStorageDriver, commiti
 		}
 		if recursive {
 			for _, parent := range cominf.parents {
-				written, err := writeCommitOrTagToPack(w, p, parent, written, commonobjects, true)
+				written, err := writeCommitOrTagToPack(w, rep, p, parent, written, commonobjects, true)
 				if err != nil {
 					return 0, err
 				}
@@ -1403,7 +1407,7 @@ func writeCommitOrTagToPack(w io.Writer, p storage.ProjectStorageDriver, commiti
 	} else if objtype == storage.ObjectTypeTag {
 		taginf := parseTagInfo(creader.headers)
 		if taginf.object != "" {
-			written, err := writeCommitOrTagToPack(w, p, taginf.object, written, commonobjects, recursive)
+			written, err := writeCommitOrTagToPack(w, rep, p, taginf.object, written, commonobjects, recursive)
 			if err != nil {
 				return 0, err
 			}
