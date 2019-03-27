@@ -22,6 +22,7 @@ func prepareRequest() (*datastructures.HookRunRequest, error) {
 
 	if debug {
 		fmt.Println("repoSpanner Hook Runner " + constants.PublicVersionString())
+		fmt.Println("Hook debugging enabled")
 	}
 
 	// Before doing anything else, lower privileges
