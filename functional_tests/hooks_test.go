@@ -38,7 +38,7 @@ func performHookTest(t *testing.T, method cloneMethod) {
 	writeTestFiles(t, wdir, 0, 2)
 	runRawCommand(t, "git", wdir, nil, "commit", "-sm", "Writing our tests")
 
-	out := runRawCommand(t, "git", wdir, nil, "push")
+	out := runRawCommand(t, "git", wdir, nil, "push", "origin", "master")
 
 	if !strings.Contains(out, "RUNNING HOOK") {
 		t.Fatal("Hook did not run")
@@ -61,12 +61,13 @@ func performHookTest(t *testing.T, method cloneMethod) {
 
 	writeTestFiles(t, wdir, 3, 3)
 	runRawCommand(t, "git", wdir, nil, "commit", "-sm", "Writing our tests")
+	runRawCommand(t, "git", wdir, nil, "tag", "-a", "testtag", "-m", "testing")
 	runCommand(
 		t, nodec.Name(),
 		"admin", "repo", "edit", "test1", "--hook-pre-receive", "blobs/test-blocking.sh",
 	)
 
-	out = runFailingRawCommand(t, "git", wdir, nil, "push")
+	out = runFailingRawCommand(t, "git", wdir, nil, "push", "origin", "master", "testtag")
 
 	if !strings.Contains(out, "RUNNING HOOK") {
 		t.Fatal("Hook did not run")

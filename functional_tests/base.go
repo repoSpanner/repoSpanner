@@ -584,6 +584,15 @@ func createTestCA(t tester) {
 		insecureKeysFlag,
 	)
 
+	for i := 0; i < 10; i++ {
+		// Create some test certificates, so that all node IDs will be > 10.
+		// This is done to make sure that all synchronization remains working with a high node ID.
+		runCommand(t, "ca", "ca", "leaf",
+			"user"+strconv.Itoa(i), "--region", "*", "--repo", "*", "--read",
+			insecureKeysFlag,
+		)
+	}
+
 	builtCa = true
 }
 
