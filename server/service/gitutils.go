@@ -455,6 +455,14 @@ func (cfg *Service) readDownloadPacketRequestHeader(ctx context.Context, r io.Re
 	}
 }
 
+func commitIDFromTag(reader io.Reader) (storage.ObjectID, error) {
+	info, err := readTag(reader)
+	if err != nil {
+		return storage.ZeroID, errors.Wrap(err, "Error reading tag to get commit ID")
+	}
+	return info.object, nil
+}
+
 func wantIsReachableFromCommons(p storage.ProjectStorageDriver, want storage.ObjectID, common, tosend objectIDSearcher) (bool, error) {
 	if common.Contains(want) {
 		return true, nil
@@ -467,7 +475,19 @@ func wantIsReachableFromCommons(p storage.ProjectStorageDriver, want storage.Obj
 	if err != nil {
 		return false, err
 	}
+	if otype == storage.ObjectTypeTag {
+		commit, err := commitIDFromTag(reader)
+		reader.Close()
+		if err != nil {
+			return false, errors.Wrap(err, "Error determining want reachability")
+		}
+		otype, _, reader, err = p.ReadObject(commit)
+		if err != nil {
+			return false, errors.Wrap(err, "Error deterining want reachability")
+		}
+	}
 	if otype != storage.ObjectTypeCommit {
+		reader.Close()
 		return false, errors.New("Non-commit found in chain")
 	}
 	info, err := readCommit(reader)
