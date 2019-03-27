@@ -162,9 +162,10 @@ func performCloneEditPushRecloneTest(t *testing.T, method cloneMethod) {
 	wdir1 := clone(t, method, nodea, "test1", "admin", true)
 	writeTestFiles(t, wdir1, 0, 3)
 	runRawCommand(t, "git", wdir1, nil, "commit", "-sm", "Writing our tests")
+	runRawCommand(t, "git", wdir1, nil, "tag", "-a", "testtag", "-m", "testing")
 
 	// Push
-	pushout := runRawCommand(t, "git", wdir1, nil, "push")
+	pushout := runRawCommand(t, "git", wdir1, nil, "push", "origin", "master", "testtag")
 	if !strings.Contains(pushout, "* [new branch]      master -> master") {
 		t.Fatal("Something went wrong in pushing")
 	}
