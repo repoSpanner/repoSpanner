@@ -375,13 +375,13 @@ func (d *clusterStorageProjectPushDriverInstance) dbPrepare() error {
 		)`,
 	)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "Error creating syncstatus table")
 	}
 	_, err = d.objectSyncDB.Exec(
 		`CREATE UNIQUE INDEX objididx ON syncstatus (objectid)`,
 	)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "Error creating objididx table")
 	}
 	return nil
 }
@@ -395,7 +395,7 @@ func (d *clusterStorageProjectPushDriverInstance) dbAddPeer(peerid uint64) error
 		`CREATE TABLE ` + d.dbPeerColumn(peerid) + ` (objectid TEXT PRIMARY KEY NOT NULL)`,
 	)
 	d.objectSyncPeers = append(d.objectSyncPeers, peerid)
-	return err
+	return errors.Wrap(err, "Error creating peer table "+d.dbPeerColumn(peerid))
 }
 
 func (d *clusterStorageProjectPushDriverInstance) dbAddObject(objid storage.ObjectID) error {
@@ -407,7 +407,7 @@ func (d *clusterStorageProjectPushDriverInstance) dbAddObject(objid storage.Obje
 
 	tx, err := d.objectSyncDB.Begin()
 	if err != nil {
-		return err
+		return errors.Wrap(err, "Error starting transaction for add object")
 	}
 	res, err := tx.Exec(
 		`INSERT OR IGNORE INTO syncstatus (objectid, alerted, neededpeers, outstanding) VALUES ($1, 0, $2, $3)`,
@@ -417,12 +417,12 @@ func (d *clusterStorageProjectPushDriverInstance) dbAddObject(objid storage.Obje
 	)
 	if err != nil {
 		tx.Rollback()
-		return err
+		return errors.Wrap(err, "Error adding object ID to syncstatus")
 	}
 	aff, err := res.RowsAffected()
 	if err != nil {
 		tx.Rollback()
-		return err
+		return errors.Wrap(err, "Error determining syncstatus rows affected")
 	}
 	if aff == 0 {
 		// This can happen if a client sends the same object twice in the same push.
@@ -447,7 +447,7 @@ func (d *clusterStorageProjectPushDriverInstance) dbAddObject(objid storage.Obje
 		)
 		if err != nil {
 			tx.Rollback()
-			return err
+			return errors.Wrap(err, "Error inserting object into peer column")
 		}
 	}
 	err = tx.Commit()
@@ -503,7 +503,7 @@ func (d *clusterStorageProjectPushDriverInstance) dbReportObject(objid storage.O
 
 	tx, err := d.objectSyncDB.Begin()
 	if err != nil {
-		return err
+		return errors.Wrap(err, "Error starting transaction for db update")
 	}
 	row := tx.QueryRow(
 		"SELECT alerted,neededpeers,outstanding FROM syncstatus WHERE objectid=$1",
@@ -513,7 +513,7 @@ func (d *clusterStorageProjectPushDriverInstance) dbReportObject(objid storage.O
 	err = row.Scan(&alerted, &neededpeers, &outstanding)
 	if err != nil {
 		tx.Rollback()
-		return err
+		return errors.Wrap(err, "Error determining changed lines for report")
 	}
 	outstanding--
 	if success {
@@ -549,12 +549,12 @@ func (d *clusterStorageProjectPushDriverInstance) dbReportObject(objid storage.O
 	)
 	if err != nil {
 		tx.Rollback()
-		return err
+		return errors.Wrap(err, "Error updating syncstatus")
 	}
 	aff, err := res.RowsAffected()
 	if err != nil {
 		tx.Rollback()
-		return err
+		return errors.Wrap(err, "Error determining lines changed for syncstatus")
 	}
 	if aff != 1 {
 		tx.Rollback()
@@ -562,7 +562,7 @@ func (d *clusterStorageProjectPushDriverInstance) dbReportObject(objid storage.O
 	}
 	err = tx.Commit()
 	if err != nil {
-		return err
+		return errors.Wrap(err, "Error committing syncstatus")
 	}
 
 	return nil
