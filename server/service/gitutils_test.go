@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -19,11 +20,14 @@ func (w maxwritable) Write(b []byte) (int, error) {
 }
 
 func TestSendPacketFromDocks(t *testing.T) {
+	ctx := context.Background()
+	ctx = addSBLockToCtx(ctx)
+
 	b := new(bytes.Buffer)
 
 	// These tests come straight from the protocol-common docs
 	b.Reset()
-	if err := sendPacket(b, []byte("a\n")); err != nil {
+	if err := sendPacket(ctx, b, []byte("a\n")); err != nil {
 		t.Fatalf("Error returned when writing: %s", err)
 	}
 	if b.String() != "0006a\n" {
@@ -31,7 +35,7 @@ func TestSendPacketFromDocks(t *testing.T) {
 	}
 
 	b.Reset()
-	if err := sendPacket(b, []byte("a")); err != nil {
+	if err := sendPacket(ctx, b, []byte("a")); err != nil {
 		t.Fatalf("Error returned when writing: %s", err)
 	}
 	if b.String() != "0005a" {
@@ -39,7 +43,7 @@ func TestSendPacketFromDocks(t *testing.T) {
 	}
 
 	b.Reset()
-	if err := sendPacket(b, []byte("foobar\n")); err != nil {
+	if err := sendPacket(ctx, b, []byte("foobar\n")); err != nil {
 		t.Fatalf("Error returned when writing: %s", err)
 	}
 	if b.String() != "000bfoobar\n" {
@@ -48,8 +52,11 @@ func TestSendPacketFromDocks(t *testing.T) {
 }
 
 func TestSendPacket(t *testing.T) {
+	ctx := context.Background()
+	ctx = addSBLockToCtx(ctx)
+
 	b := new(bytes.Buffer)
-	if err := sendPacket(b, []byte("hello")); err != nil {
+	if err := sendPacket(ctx, b, []byte("hello")); err != nil {
 		t.Fatalf("Error returned when writing: %s", err)
 	}
 	if b.String() != "0009hello" {
@@ -57,7 +64,7 @@ func TestSendPacket(t *testing.T) {
 	}
 
 	b.Reset()
-	err := sendPacket(b, []byte(""))
+	err := sendPacket(ctx, b, []byte(""))
 	if err == nil {
 		t.Fatalf("sendPacket of empty packet didn't fail?")
 	}
@@ -69,7 +76,7 @@ func TestSendPacket(t *testing.T) {
 	}
 
 	b.Reset()
-	err = sendPacket(b, make([]byte, 65517))
+	err = sendPacket(ctx, b, make([]byte, 65517))
 	if err == nil {
 		t.Fatalf("Too long packet written")
 	}
@@ -81,7 +88,7 @@ func TestSendPacket(t *testing.T) {
 	}
 
 	b.Reset()
-	err = sendPacket(b, make([]byte, 65516))
+	err = sendPacket(ctx, b, make([]byte, 65516))
 	if err != nil {
 		t.Fatalf("Max length packet not accepted")
 	}
@@ -94,7 +101,7 @@ func TestSendPacket(t *testing.T) {
 	}
 
 	w := maxwritable{}
-	err = sendPacket(w, []byte("hello"))
+	err = sendPacket(ctx, w, []byte("hello"))
 	if err == nil {
 		t.Fatalf("Non-writable error not returned")
 	}
@@ -103,7 +110,7 @@ func TestSendPacket(t *testing.T) {
 	}
 
 	w = maxwritable{maxlen: 4}
-	err = sendPacket(w, []byte("hello"))
+	err = sendPacket(ctx, w, []byte("hello"))
 	if err == nil {
 		t.Fatalf("Non-writable error not returned")
 	}
@@ -112,15 +119,18 @@ func TestSendPacket(t *testing.T) {
 	}
 
 	w = maxwritable{maxlen: 5}
-	err = sendPacket(w, []byte("hello"))
+	err = sendPacket(ctx, w, []byte("hello"))
 	if err != nil {
 		t.Fatalf("More data written than expected")
 	}
 }
 
 func TestSendPacketWithExtensions(t *testing.T) {
+	ctx := context.Background()
+	ctx = addSBLockToCtx(ctx)
+
 	b := new(bytes.Buffer)
-	if err := sendPacketWithExtensions(b, []byte("hello"), make(map[string]string)); err != nil {
+	if err := sendPacketWithExtensions(ctx, b, []byte("hello"), make(map[string]string)); err != nil {
 		t.Errorf("Error returned when writing: %s", err)
 	}
 	if !strings.Contains(b.String(), "hello\x00delete-refs") {
@@ -132,8 +142,11 @@ func TestSendPacketWithExtensions(t *testing.T) {
 }
 
 func TestSendFlushPacket(t *testing.T) {
+	ctx := context.Background()
+	ctx = addSBLockToCtx(ctx)
+
 	b := new(bytes.Buffer)
-	if err := sendFlushPacket(b); err != nil {
+	if err := sendFlushPacket(ctx, b); err != nil {
 		t.Errorf("Error returned when writing: %s", err)
 	}
 	if b.String() != "0000" {

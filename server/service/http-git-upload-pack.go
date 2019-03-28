@@ -65,9 +65,9 @@ func (cfg *Service) serveGitUploadPack(ctx context.Context, w http.ResponseWrite
 		if isReady {
 			// We have enough info to generate a pack, ack blindly
 			if multiAckDetailed {
-				sendPacket(rw, []byte("ACK "+have+" common\n"))
+				sendPacket(ctx, rw, []byte("ACK "+have+" common\n"))
 			} else if multiAck {
-				sendPacket(rw, []byte("ACK "+have+"\n"))
+				sendPacket(ctx, rw, []byte("ACK "+have+"\n"))
 			}
 			continue
 		}
@@ -90,21 +90,21 @@ func (cfg *Service) serveGitUploadPack(ctx context.Context, w http.ResponseWrite
 			}
 			firstCommon = have
 			if multiAckDetailed {
-				sendPacket(rw, []byte("ACK "+have+" common\n"))
+				sendPacket(ctx, rw, []byte("ACK "+have+" common\n"))
 				if enough && !sentReady {
-					sendPacket(rw, []byte("ACK "+have+" ready\n"))
+					sendPacket(ctx, rw, []byte("ACK "+have+" ready\n"))
 					sentReady = true
 				}
 			} else if multiAck {
-				sendPacket(rw, []byte("ACK "+have+"\n"))
+				sendPacket(ctx, rw, []byte("ACK "+have+"\n"))
 			}
 		}
 	}
 	if firstCommon == storage.ZeroID {
 		// send NAK
-		sendPacket(rw, []byte("NAK\n"))
+		sendPacket(ctx, rw, []byte("NAK\n"))
 	} else {
-		sendPacket(rw, []byte("ACK "+firstCommon+"\n"))
+		sendPacket(ctx, rw, []byte("ACK "+firstCommon+"\n"))
 	}
 	if !sentdone && !hasCapab(ctx, "no-done") {
 		cfg.debugPacket(ctx, rw, "Not sending pack per request")
@@ -193,7 +193,7 @@ func (cfg *Service) serveGitUploadPack(ctx context.Context, w http.ResponseWrite
 	}
 
 	cfg.debugPacket(ctx, rw, "Packfile sent")
-	err = sendFlushPacket(w)
+	err = sendFlushPacket(ctx, w)
 
 	reqlogger.Debug("Pull result sent, we are all done")
 

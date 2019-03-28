@@ -14,7 +14,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
-
 	pb "repospanner.org/repospanner/server/protobuf"
 )
 
@@ -32,13 +31,13 @@ func (cfg *Service) serveGitReceivePack(ctx context.Context, w http.ResponseWrit
 	if err != nil {
 		// TODO: Log inner error
 		reqlogger.WithError(err).Info("Invalid request received")
-		sendPacket(rw, []byte("ERR Invalid request"))
+		sendPacket(ctx, rw, []byte("ERR Invalid request"))
 		return
 	}
 	ctx, reqlogger, err = addCapabsToCtx(ctx, capabs)
 	if err != nil {
 		reqlogger.WithError(err).Info("Invalid request received")
-		sendPacket(rw, []byte("ERR Invalid request"))
+		sendPacket(ctx, rw, []byte("ERR Invalid request"))
 		return
 	}
 	ctx, reqlogger = expandCtxLogger(ctx, logrus.Fields{

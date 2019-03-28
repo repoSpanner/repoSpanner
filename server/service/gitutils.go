@@ -63,9 +63,13 @@ func (s sideBandStatus) String() string {
 }
 
 func sendSideBandFlushPacket(ctx context.Context, w io.Writer, sb sideBand) error {
+	lock := sbLockFromCtx(ctx)
+	lock.Lock()
+	defer lock.Unlock()
+
 	sbstatus := sbStatusFromCtx(ctx)
 	if sbstatus == sideBandStatusNot {
-		return sendFlushPacket(w)
+		return sendFlushPacket(ctx, w)
 	}
 	_, err := w.Write([]byte{byte(sb), '0', '0', '0', '0'})
 	return err
@@ -96,7 +100,7 @@ func sendStatusPacket(ctx context.Context, w io.Writer, packets ...string) error
 		return err
 	}
 	// Then an out-of-sideband flush
-	return sendFlushPacket(w)
+	return sendFlushPacket(ctx, w)
 }
 
 func sendSideBandPacket(ctx context.Context, w io.Writer, sb sideBand, packet []byte) error {
@@ -105,7 +109,7 @@ func sendSideBandPacket(ctx context.Context, w io.Writer, sb sideBand, packet []
 	if sbstatus == sideBandStatusNot {
 		// We have no sideband, ignore anything except for sideband data
 		if sb == sideBandData {
-			return sendPacket(w, packet)
+			return sendPacket(ctx, w, packet)
 		}
 		// No sideband, no data... Ignore
 		return nil
@@ -127,7 +131,7 @@ func sendSideBandPacket(ctx context.Context, w io.Writer, sb sideBand, packet []
 			end = len(packet)
 		}
 		tosend := append([]byte{byte(sb)}, packet[start:end]...)
-		if err := sendPacket(w, tosend); err != nil {
+		if err := sendPacket(ctx, w, tosend); err != nil {
 			return err
 		}
 	}
@@ -179,14 +183,14 @@ var extensions = []string{
 	"agent=repoSpanner/" + constants.PublicVersionString(),
 }
 
-func sendPacketWithExtensions(w io.Writer, packet []byte, symrefs map[string]string) error {
+func sendPacketWithExtensions(ctx context.Context, w io.Writer, packet []byte, symrefs map[string]string) error {
 	packet = append(packet, byte('\x00'))
 	packet = append(packet, []byte(strings.Join(extensions, " "))...)
 	for symref, target := range symrefs {
 		packet = append(packet, []byte(" symref="+symref+":"+target)...)
 	}
 	packet = append(packet, byte('\n'))
-	return sendPacket(w, packet)
+	return sendPacket(ctx, w, packet)
 }
 
 func getPacketLen(packet []byte) ([]byte, error) {
@@ -240,7 +244,11 @@ func possiblyFlush(w io.Writer) {
 	}
 }
 
-func sendPacket(w io.Writer, packet []byte) error {
+func sendPacket(ctx context.Context, w io.Writer, packet []byte) error {
+	lock := sbLockFromCtx(ctx)
+	lock.Lock()
+	defer lock.Unlock()
+
 	len, err := getPacketLen(packet)
 	if err != nil {
 		return err
@@ -255,7 +263,11 @@ func sendPacket(w io.Writer, packet []byte) error {
 	return nil
 }
 
-func sendFlushPacket(w io.Writer) error {
+func sendFlushPacket(ctx context.Context, w io.Writer) error {
+	lock := sbLockFromCtx(ctx)
+	lock.Lock()
+	defer lock.Unlock()
+
 	_, err := w.Write([]byte{'0', '0', '0', '0'})
 	possiblyFlush(w)
 	return err
@@ -296,7 +308,7 @@ func readPacket(r io.Reader) ([]byte, error) {
 
 func sendUnpackFail(ctx context.Context, w io.Writer, toupdate *pb.PushRequest, msg string) {
 	if !hasCapab(ctx, "report-status") {
-		sendFlushPacket(w)
+		sendFlushPacket(ctx, w)
 		return
 	}
 
@@ -312,7 +324,7 @@ func sendUnpackFail(ctx context.Context, w io.Writer, toupdate *pb.PushRequest, 
 
 func sendPushResult(ctx context.Context, w io.Writer, result PushResult) {
 	if !hasCapab(ctx, "report-status") {
-		sendFlushPacket(w)
+		sendFlushPacket(ctx, w)
 		return
 	}
 
