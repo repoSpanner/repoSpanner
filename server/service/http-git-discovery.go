@@ -38,11 +38,11 @@ func (cfg *Service) serveGitDiscovery(ctx context.Context, w http.ResponseWriter
 		w.WriteHeader(200)
 
 		if !isrepobridge {
-			if err := sendPacket(w, []byte("# service="+service+"\n")); err != nil {
+			if err := sendPacket(ctx, w, []byte("# service="+service+"\n")); err != nil {
 				http.NotFound(w, r)
 				return
 			}
-			if err := sendFlushPacket(w); err != nil {
+			if err := sendFlushPacket(ctx, w); err != nil {
 				http.NotFound(w, r)
 				return
 			}
@@ -71,9 +71,9 @@ func (cfg *Service) serveGitDiscovery(ctx context.Context, w http.ResponseWriter
 			// Empty repo
 			if service == "git-receive-pack" {
 				pkt := []byte(fmt.Sprintf("%s capabilities^{}", storage.ZeroID))
-				sendPacketWithExtensions(w, pkt, symrefs)
+				sendPacketWithExtensions(ctx, w, pkt, symrefs)
 			}
-			sendFlushPacket(w)
+			sendFlushPacket(ctx, w)
 			return
 		}
 		sentexts := false
@@ -84,10 +84,10 @@ func (cfg *Service) serveGitDiscovery(ctx context.Context, w http.ResponseWriter
 			pkt := []byte(fmt.Sprintf("%s %s", refval, refname))
 			var err error
 			if !sentexts {
-				err = sendPacketWithExtensions(w, pkt, symrefs)
+				err = sendPacketWithExtensions(ctx, w, pkt, symrefs)
 				sentexts = true
 			} else {
-				err = sendPacket(w, pkt)
+				err = sendPacket(ctx, w, pkt)
 			}
 			if err != nil {
 				http.NotFound(w, r)
@@ -101,14 +101,14 @@ func (cfg *Service) serveGitDiscovery(ctx context.Context, w http.ResponseWriter
 			}
 			pkt := []byte(fmt.Sprintf("%s %s", refval, symref))
 			var err error
-			err = sendPacket(w, pkt)
+			err = sendPacket(ctx, w, pkt)
 			if err != nil {
 				http.NotFound(w, r)
 				return
 			}
 		}
 
-		if err := sendFlushPacket(w); err != nil {
+		if err := sendFlushPacket(ctx, w); err != nil {
 			http.NotFound(w, r)
 			return
 		}

@@ -71,6 +71,7 @@ func (cfg *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	ctx := cfg.ctxFromReq(w, r, "gitservice")
+	ctx = addSBLockToCtx(ctx)
 	reqlogger := loggerFromCtx(ctx)
 	perminfo, _ := permFromCtx(ctx)
 

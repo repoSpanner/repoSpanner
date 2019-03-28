@@ -47,6 +47,7 @@ func (cfg *Service) runRPC(errchan chan<- error) {
 
 func (cfg *Service) rpcRepoHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := cfg.ctxFromReq(w, r, "rpc")
+	ctx = addSBLockToCtx(ctx)
 	reqlogger := loggerFromCtx(ctx)
 
 	pathparts := strings.Split(r.URL.Path, "/")[3:]

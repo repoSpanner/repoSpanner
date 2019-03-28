@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"net/http"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -15,6 +16,7 @@ const (
 	permKey     key = 1
 	capabsKey   key = 2
 	sbstatusKey key = 3
+	sbLockKey   key = 4
 )
 
 func watchCloser(ctx context.Context, w http.ResponseWriter) context.Context {
@@ -127,6 +129,10 @@ func addCapabsToCtx(ctx context.Context, capabs []string) (context.Context, *log
 	return ctx, reqlogger, nil
 }
 
+func addSBLockToCtx(ctx context.Context) context.Context {
+	return context.WithValue(ctx, sbLockKey, new(sync.Mutex))
+}
+
 func capabsFromCtx(ctx context.Context) ([]string, bool) {
 	capabs, ok := ctx.Value(capabsKey).([]string)
 	return capabs, ok
@@ -138,4 +144,12 @@ func sbStatusFromCtx(ctx context.Context) sideBandStatus {
 		return sideBandStatusNot
 	}
 	return sbstatus
+}
+
+func sbLockFromCtx(ctx context.Context) sync.Locker {
+	sblock, _ := ctx.Value(sbLockKey).(*sync.Mutex)
+	if sblock == nil {
+		panic("SB Lock requested for context without one")
+	}
+	return sblock
 }
