@@ -14,6 +14,8 @@ type ObjectID string
 
 const ZeroID ObjectID = "0000000000000000000000000000000000000000"
 
+const ObjectIDLength = 40
+
 func ObjectIDFromRaw(rawid []byte) ObjectID {
 	return ObjectID(hex.EncodeToString(rawid))
 }
