@@ -268,9 +268,9 @@ func getDeltaDestSize(delta io.Reader, expectedBaseSize uint) (objsize uint, byt
 
 func getSizeFromDeltaHeader(r io.Reader) (objsize uint, bytesread uint, err error) {
 	var shift uint
+	var buf [1]byte
 	for {
-		buf := make([]byte, 1)
-		if _, err = r.Read(buf); err != nil {
+		if _, err = r.Read(buf[:]); err != nil {
 			return
 		}
 		bytesread++

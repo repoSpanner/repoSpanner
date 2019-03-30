@@ -217,9 +217,9 @@ func (cfg *Service) rpcGetSingleObject(w http.ResponseWriter, r *http.Request) {
 	w.Header()["X-ObjectSize"] = []string{strconv.FormatUint(uint64(objsize), 10)}
 	w.WriteHeader(200)
 
-	buf := make([]byte, 1024)
+	var buf [1024]byte
 	for {
-		n, err := reader.Read(buf)
+		n, err := reader.Read(buf[:])
 		if err == io.EOF {
 			return
 		}
