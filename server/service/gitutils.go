@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/pkg/errors"
 	"repospanner.org/repospanner/server/constants"
@@ -969,43 +970,162 @@ func validateTree(p storage.ProjectStorageDriver, treeid storage.ObjectID, seent
 	return nil
 }
 
-// TODO: Replace objectIDSearch with a binary search tree
 type objectIDSearcher interface {
-	Add(o storage.ObjectID)
+	Add(o storage.ObjectID) bool
 	Contains(o storage.ObjectID) bool
 	List() []storage.ObjectID
+	NumEntries() int
+}
+
+type bstNode struct {
+	left  *bstNode
+	right *bstNode
+	value storage.ObjectID
+}
+
+type bstSearcher struct {
+	rootNode *bstNode
+	num      int
+	lock     sync.RWMutex
+}
+
+type cmpResult int
+
+const (
+	cmpResultEqual   = 0
+	cmpResultSmaller = -1
+	cmpResultBigger  = 1
+)
+
+func objectIDCompare(a, b storage.ObjectID) cmpResult {
+	// NOTE: This function *requires* that len(a) == len(b) == 40 (object ID length)
+	// This invariant is made sure to hold by the Add function, but it is useful to note
+	for i := 0; i < 40; i++ {
+		if a[i] < b[i] {
+			return cmpResultSmaller
+		} else if a[i] > b[i] {
+			return cmpResultBigger
+		}
+	}
+	return cmpResultEqual
+}
+
+func (s *bstSearcher) add(o storage.ObjectID) bool {
+	// This makes sure we don't have to keep into account string length in the bstNode
+	if len(string(o)) != storage.ObjectIDLength {
+		panic("Attempt to add object ID " + string(o) + " to searcher which is not a valid object ID")
+	}
+
+	if s.rootNode == nil {
+		s.num = 1
+		s.rootNode = new(bstNode)
+		s.rootNode.value = o
+		return true
+	}
+	node := s.rootNode
+	for {
+		cmpres := objectIDCompare(o, node.value)
+		switch cmpres {
+		case cmpResultEqual:
+			// This object ID was already in the searcher
+			return false
+		case cmpResultSmaller:
+			if node.left == nil {
+				node.left = new(bstNode)
+				node.left.value = o
+				s.num++
+				return true
+			}
+			node = node.left
+			continue
+		case cmpResultBigger:
+			if node.right == nil {
+				node.right = new(bstNode)
+				node.right.value = o
+				s.num++
+				return true
+			}
+			node = node.right
+			continue
+		}
+	}
+}
+
+func (s *bstSearcher) Add(o storage.ObjectID) bool {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	return s.add(o)
+}
+
+func (s *bstSearcher) addList(list []storage.ObjectID) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	for _, o := range list {
+		s.add(o)
+	}
 }
 
 func newObjectIDSearch() objectIDSearcher {
-	return &listObjectIDSearch{[]storage.ObjectID{}}
+	return new(bstSearcher)
 }
 
 func newObjectIDSearchFromSlice(o []storage.ObjectID) objectIDSearcher {
-	return &listObjectIDSearch{o}
+	s := new(bstSearcher)
+	s.addList(o)
+	return s
 }
 
-type listObjectIDSearch struct {
-	s []storage.ObjectID
-}
+func (s *bstSearcher) Contains(o storage.ObjectID) bool {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
 
-func (t *listObjectIDSearch) Add(o storage.ObjectID) {
-	if t.Contains(o) {
-		return
-	}
-	t.s = append(t.s, o)
-}
-
-func (t *listObjectIDSearch) Contains(o storage.ObjectID) bool {
-	for _, oid := range t.s {
-		if oid == o {
+	node := s.rootNode
+	for node != nil {
+		cmpres := objectIDCompare(o, node.value)
+		switch cmpres {
+		case cmpResultEqual:
 			return true
+		case cmpResultSmaller:
+			node = node.left
+		case cmpResultBigger:
+			node = node.right
 		}
 	}
 	return false
 }
 
-func (t *listObjectIDSearch) List() []storage.ObjectID {
-	return t.s
+// toList writes a node and its children (depth-first) to an existing list
+// This list must be big enough for all items (that is not checked additionally)
+// It will start adding entries to at list[start], and return the position after where it ended writing
+// Thus, this function writes this node and its children to list[start:end]
+func (n *bstNode) toList(list []storage.ObjectID, start int) (end int) {
+	if n == nil {
+		return start
+	}
+	pos := start
+	list[pos] = n.value
+	pos++
+	pos = n.left.toList(list, pos)
+	pos = n.right.toList(list, pos)
+	return pos
+}
+
+func (s *bstSearcher) List() []storage.ObjectID {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	list := make([]storage.ObjectID, s.num)
+	s.rootNode.toList(list, 0)
+	return list
+}
+
+func (s *bstSearcher) NumEntries() int {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	return s.num
 }
 
 func hasObject(p storage.ProjectStorageDriver, objid storage.ObjectID) (bool, error) {
@@ -1211,7 +1331,7 @@ func writeTemporaryPackFile(r packedReportFunc, p storage.ProjectStorageDriver, 
 		numobjects += numObjectsInCommit
 	}
 
-	if len(written.List()) != int(numobjects) {
+	if written.NumEntries() != int(numobjects) {
 		return nil, 0, fmt.Errorf("written != numwritten: %d != %d", len(written.List()), numobjects)
 	}
 

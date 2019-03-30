@@ -6,6 +6,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"repospanner.org/repospanner/server/storage"
 )
 
 type maxwritable struct {
@@ -151,5 +153,33 @@ func TestSendFlushPacket(t *testing.T) {
 	}
 	if b.String() != "0000" {
 		t.Errorf("Incorrect data written: %v", b.String())
+	}
+}
+
+const (
+	testObjID1 storage.ObjectID = "1000000000000000000000000000000000000000"
+	testObjID2 storage.ObjectID = "2000000000000000000000000000000000000000"
+	testObjID3 storage.ObjectID = "3000000000000000000000000000000000000000"
+)
+
+func TestObjectIDSearcher(t *testing.T) {
+	s := newObjectIDSearch()
+	if s.NumEntries() != 0 {
+		t.Errorf("Invalid number of entries at start: %d", s.NumEntries())
+	}
+	if !s.Add(testObjID1) {
+		t.Error("First object ID not marked as new")
+	}
+	if !s.Add(testObjID3) {
+		t.Error("Second object ID not marked as new")
+	}
+	if s.Add(testObjID1) {
+		t.Error("First object ID marked as new")
+	}
+	if !s.Add(testObjID2) {
+		t.Error("Third object ID not marked as new")
+	}
+	if s.NumEntries() != 3 {
+		t.Errorf("Invalid number of entries at end: %d", s.NumEntries())
 	}
 }
