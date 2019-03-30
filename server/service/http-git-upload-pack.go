@@ -116,10 +116,12 @@ func (cfg *Service) serveGitUploadPack(ctx context.Context, w http.ResponseWrite
 	cfg.maybeSayHello(ctx, rw)
 	cfg.debugPacket(ctx, rw, "Building packfile")
 
+	lastNumObjectsPackedReported := 0
 	numObjectsPacked := 0
-	reportObjectPacked := func() {
-		numObjectsPacked++
-		if numObjectsPacked%100 == 0 {
+	reportObjectPacked := func(numobjects int) {
+		numObjectsPacked += numobjects
+		if numObjectsPacked-lastNumObjectsPackedReported > 100 {
+			lastNumObjectsPackedReported = numobjects
 			sendSideBandPacket(
 				ctx,
 				rw,
