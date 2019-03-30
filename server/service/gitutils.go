@@ -1184,7 +1184,7 @@ func buildPackHeader(numo uint32) (buf []byte) {
 	return
 }
 
-type packedReportFunc func()
+type packedReportFunc func(numobjects int)
 
 func writeTemporaryPackFile(r packedReportFunc, p storage.ProjectStorageDriver, commits []storage.ObjectID, commonobjects objectIDSearcher, recursive bool) (packfile *os.File, numobjects uint32, err error) {
 	packfile, err = ioutil.TempFile("", "repospanner_pack_")
@@ -1286,7 +1286,7 @@ func writeTreeToPack(w io.Writer, rep packedReportFunc, p storage.ProjectStorage
 		// This tree was determined to be already on the client
 		return 0, nil
 	}
-	rep()
+	rep(1)
 	written.Add(treeid)
 
 	objtype, objsize, r, err := p.ReadObject(treeid)
@@ -1390,7 +1390,7 @@ func writeCommitOrTagToPack(w io.Writer, rep packedReportFunc, p storage.Project
 	} else if commonobjects.Contains(commitid) {
 		return 0, nil
 	}
-	rep()
+	rep(1)
 
 	objtype, objsize, r, err := p.ReadObject(commitid)
 	if err != nil {
