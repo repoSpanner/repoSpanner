@@ -166,14 +166,14 @@ func (cfg *Service) serveGitUploadPack(ctx context.Context, w http.ResponseWrite
 		panic(err)
 	}
 
+	var buf [1024]byte
 	for {
 		if ctx.Err() != nil {
 			reqlogger.Debug("Connection closed")
 			return
 		}
 
-		buf := make([]byte, 1024)
-		in, err := packfile.Read(buf)
+		in, err := packfile.Read(buf[:])
 		if err != nil {
 			if err == io.EOF {
 				break

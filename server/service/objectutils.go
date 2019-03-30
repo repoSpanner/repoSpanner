@@ -79,9 +79,9 @@ func (r *headerObjectReader) parseLine() error {
 
 func (r *headerObjectReader) ParseFullHeader() error {
 	// Call this function if you're not interested in the contents, and just want the header parsed
+	var buf [1024]byte
 	for {
-		buf := make([]byte, 1024)
-		_, err := r.Read(buf)
+		_, err := r.Read(buf[:])
 		if err == io.EOF {
 			return nil
 		}
@@ -212,10 +212,10 @@ func (t *treeReader) resetEntry() {
 }
 
 func (t *treeReader) parseEntries() error {
+	var modebuf [8]byte
 	for {
 		if t.currentMode == 0 {
 			// Read until first space, expect <=7 characters
-			modebuf := make([]byte, 8)
 			var i int
 			for {
 				if i >= 8 {
@@ -315,9 +315,9 @@ func (t *treeReader) Read(buf []byte) (int, error) {
 
 func (t *treeReader) ParseFullTree() error {
 	// Call this function if you're not interested in the contents, and just want the parsed tree
+	var buf [1024]byte
 	for {
-		buf := make([]byte, 1024)
-		_, err := t.Read(buf)
+		_, err := t.Read(buf[:])
 		if err == io.EOF {
 			return nil
 		}

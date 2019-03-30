@@ -278,13 +278,13 @@ func (s *splitReadCloser) Read(p []byte) (int, error) { return s.r.Read(p) }
 func (s *splitReadCloser) Close() error               { return s.c.Close() }
 
 func shouldClose(r io.ReadCloser) (bool, io.ReadCloser) {
-	buf := make([]byte, 4)
-	n, err := r.Read(buf)
+	var buf [4]byte
+	n, err := r.Read(buf[:])
 	checkError(err, "Error determining whether to close channel")
 	if n != 4 {
 		exitWithError("Not enough bytes read to determine close status")
 	}
-	buffer := bytes.NewBuffer(buf)
+	buffer := bytes.NewBuffer(buf[:])
 	combined := &splitReadCloser{
 		r: io.MultiReader(buffer, r),
 		c: r,

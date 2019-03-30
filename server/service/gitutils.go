@@ -274,15 +274,15 @@ func sendFlushPacket(ctx context.Context, w io.Writer) error {
 }
 
 func readPacket(r io.Reader) ([]byte, error) {
-	rawlen := make([]byte, 4)
-	n, err := io.ReadFull(r, rawlen)
+	var rawlen [4]byte
+	n, err := io.ReadFull(r, rawlen[:])
 	if err != nil {
 		return nil, err
 	}
 	if n != 4 {
 		return nil, fmt.Errorf("Expected 4 bytes, got %d", n)
 	}
-	len, err := strconv.ParseInt(string(rawlen), 16, 0)
+	len, err := strconv.ParseInt(string(rawlen[:]), 16, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -652,11 +652,11 @@ func concatSlices(slices ...[]byte) (ret []byte) {
 }
 
 func getPackHeader(r io.Reader) (version uint32, numobjects uint32, err error) {
-	rawhdr := make([]byte, 4)
-	if _, err = io.ReadFull(r, rawhdr); err != nil {
+	var rawhdr [4]byte
+	if _, err = io.ReadFull(r, rawhdr[:]); err != nil {
 		return 0, 0, errors.Wrap(err, "Error reading pack header")
 	}
-	if string(rawhdr) != "PACK" {
+	if string(rawhdr[:]) != "PACK" {
 		return 0, 0, errors.New("Non-PACK header received")
 	}
 	version, err = getNetworkByteOrderInt32(r)
@@ -671,17 +671,11 @@ func getPackHeader(r io.Reader) (version uint32, numobjects uint32, err error) {
 }
 
 func getNetworkByteOrderInt32(r io.Reader) (uint32, error) {
-	buf := make([]byte, 4)
-	if _, err := io.ReadFull(r, buf); err != nil {
+	var buf [4]byte
+	if _, err := io.ReadFull(r, buf[:]); err != nil {
 		return 0, err
 	}
-	return binary.BigEndian.Uint32(buf), nil
-}
-
-func writeNetworkByteOrderInt32(n uint32) []byte {
-	buf := make([]byte, 4)
-	binary.BigEndian.PutUint32(buf, n)
-	return buf
+	return binary.BigEndian.Uint32(buf[:]), nil
 }
 
 func checksumsMatch(ctx context.Context, calculated, expected []byte) bool {
@@ -708,9 +702,9 @@ func getSingleObjectTypeSizeFromPack(r io.Reader) (objtype storage.ObjectType, o
 
 	firstbyte := true
 	var shift uint = 4
+	var buf [1]byte
 	for {
-		buf := make([]byte, 1)
-		if _, err = r.Read(buf); err != nil {
+		if _, err = r.Read(buf[:]); err != nil {
 			return
 		}
 		val := uint(buf[0])
@@ -769,11 +763,11 @@ func getSingleObjectFromPack(r io.Reader, s storage.ProjectStoragePushDriver) (s
 	}
 
 	if objtype == storage.ObjectTypeRefDelta {
-		buf := make([]byte, 20)
-		if _, err := io.ReadFull(r, buf); err != nil {
+		var buf [20]byte
+		if _, err := io.ReadFull(r, buf[:]); err != nil {
 			return storage.ZeroID, 0, toresolve, err
 		}
-		toresolve.baseobj = storage.ObjectIDFromRaw(buf)
+		toresolve.baseobj = storage.ObjectIDFromRaw(buf[:])
 	}
 
 	zreader, err := zlib.NewReader(r)
@@ -790,9 +784,9 @@ func getSingleObjectFromPack(r io.Reader, s storage.ProjectStoragePushDriver) (s
 	oidwriter := getObjectIDStart(objtype, objsize)
 	combwriter := io.MultiWriter(oidwriter, stager)
 
+	var buf [1024]byte
 	for {
-		buf := make([]byte, 1024)
-		n, err := zreader.Read(buf)
+		n, err := zreader.Read(buf[:])
 		_, outerr := combwriter.Write(buf[:n])
 		if err == nil {
 			if outerr != nil {
@@ -981,26 +975,27 @@ type objectIDSearcher interface {
 	Contains(o storage.ObjectID) bool
 	List() []storage.ObjectID
 }
-type objectIDSearch struct {
-	s []storage.ObjectID
-}
 
 func newObjectIDSearch() objectIDSearcher {
-	return &objectIDSearch{[]storage.ObjectID{}}
+	return &listObjectIDSearch{[]storage.ObjectID{}}
 }
 
 func newObjectIDSearchFromSlice(o []storage.ObjectID) objectIDSearcher {
-	return &objectIDSearch{o}
+	return &listObjectIDSearch{o}
 }
 
-func (t *objectIDSearch) Add(o storage.ObjectID) {
+type listObjectIDSearch struct {
+	s []storage.ObjectID
+}
+
+func (t *listObjectIDSearch) Add(o storage.ObjectID) {
 	if t.Contains(o) {
 		return
 	}
 	t.s = append(t.s, o)
 }
 
-func (t *objectIDSearch) Contains(o storage.ObjectID) bool {
+func (t *listObjectIDSearch) Contains(o storage.ObjectID) bool {
 	for _, oid := range t.s {
 		if oid == o {
 			return true
@@ -1009,7 +1004,7 @@ func (t *objectIDSearch) Contains(o storage.ObjectID) bool {
 	return false
 }
 
-func (t *objectIDSearch) List() []storage.ObjectID {
+func (t *listObjectIDSearch) List() []storage.ObjectID {
 	return t.s
 }
 
@@ -1164,22 +1159,18 @@ func getAcksAndCommits(p storage.ProjectStorageDriver, wants []storage.ObjectID,
 	return
 }
 
-func copyBuffer(dst, src []byte, start, copylen int) {
-	var i int
-	for i < copylen {
-		dst[i+start] = src[i]
-		i++
-	}
-}
-
 func buildPackHeader(numo uint32) (buf []byte) {
 	buf = make([]byte, 4+4+4)
-	version := writeNetworkByteOrderInt32(2)
-	num := writeNetworkByteOrderInt32(numo)
 
-	copyBuffer(buf, []byte("PACK"), 0, 4)
-	copyBuffer(buf, version, 4, 4)
-	copyBuffer(buf, num, 8, 4)
+	// Pack header
+	buf[0] = 'P'
+	buf[1] = 'A'
+	buf[2] = 'C'
+	buf[3] = 'K'
+	// Pack version
+	binary.BigEndian.PutUint32(buf[4:], 2)
+	// Num objects
+	binary.BigEndian.PutUint32(buf[8:], numo)
 
 	return
 }
@@ -1229,9 +1220,9 @@ func writeTemporaryPackFile(r packedReportFunc, p storage.ProjectStorageDriver, 
 
 func flushToFrom(w io.Writer, r io.Reader, expected uint) (int, error) {
 	totalsent := 0
+	var buf [1024]byte
 	for {
-		buf := make([]byte, 1024)
-		r, err := r.Read(buf)
+		r, err := r.Read(buf[:])
 		if err == io.EOF {
 			break
 		}
