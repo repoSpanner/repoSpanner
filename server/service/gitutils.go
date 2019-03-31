@@ -836,22 +836,26 @@ func hasCapab(ctx context.Context, capab string) bool {
 }
 
 func validateObjects(p storage.ProjectStorageDriver, toupdate *pb.PushRequest, recurse bool) error {
+	searcher := newObjectIDSearch()
+	for _, updinfo := range toupdate.Requests {
+		// Mark the "from" objects as "seen"
+		searcher.Add(storage.ObjectID(updinfo.GetFrom()))
+	}
 	for _, updinfo := range toupdate.Requests {
 		if updinfo.ToObject() == storage.ZeroID {
 			// Not much to verify for a deletion request
 			continue
 		}
-		if err := validateCommitOrTag(p, updinfo.ToObject(), updinfo.FromObject(), true, recurse); err != nil {
+		if err := validateCommitOrTag(p, updinfo.ToObject(), searcher, true, recurse); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func validateCommitOrTag(p storage.ProjectStorageDriver, commitstart storage.ObjectID, commitend storage.ObjectID, allowtag bool, recursive bool) error {
-	if commitstart == commitend {
-		// We assume that the refto is already in our database.
-		// If it isn't, it will get rejected at the update
+func validateCommitOrTag(p storage.ProjectStorageDriver, commitstart storage.ObjectID, seen objectIDSearcher, allowtag bool, recursive bool) error {
+	if !seen.Add(commitstart) {
+		// This object is either already in our database or we have already verified it
 		return nil
 	}
 
@@ -862,16 +866,16 @@ func validateCommitOrTag(p storage.ProjectStorageDriver, commitstart storage.Obj
 	defer r.Close()
 
 	if objtype == storage.ObjectTypeCommit {
-		return validateCommitContents(p, r, commitend, recursive)
+		return validateCommitContents(p, r, seen, recursive)
 	} else if allowtag && objtype == storage.ObjectTypeTag {
-		return validateTag(p, r, commitend)
+		return validateTag(p, r, seen)
 	} else if !allowtag {
 		return errors.New("Tag object found in tag object?")
 	}
 	return errors.New("Non-commit-non-tag object passed in refto chain")
 }
 
-func validateTag(p storage.ProjectStorageDriver, r io.ReadCloser, commitend storage.ObjectID) error {
+func validateTag(p storage.ProjectStorageDriver, r io.ReadCloser, seen objectIDSearcher) error {
 	taginf, err := readTag(r)
 	if err != nil {
 		return err
@@ -888,10 +892,10 @@ func validateTag(p storage.ProjectStorageDriver, r io.ReadCloser, commitend stor
 		return errors.New("Empty tagname received")
 	}
 
-	return validateCommitOrTag(p, taginf.object, storage.ZeroID, false, false)
+	return validateCommitOrTag(p, taginf.object, seen, false, false)
 }
 
-func validateCommitContents(p storage.ProjectStorageDriver, r io.ReadCloser, commitend storage.ObjectID, recursive bool) error {
+func validateCommitContents(p storage.ProjectStorageDriver, r io.ReadCloser, seen objectIDSearcher, recursive bool) error {
 	cominf, err := readCommit(r)
 	if err != nil {
 		return err
@@ -899,7 +903,7 @@ func validateCommitContents(p storage.ProjectStorageDriver, r io.ReadCloser, com
 	r.Close()
 
 	if cominf.tree != "" {
-		if err := validateTree(p, cominf.tree, []storage.ObjectID{}); err != nil {
+		if err := validateTree(p, cominf.tree, seen); err != nil {
 			return err
 		}
 	}
@@ -910,7 +914,7 @@ func validateCommitContents(p storage.ProjectStorageDriver, r io.ReadCloser, com
 	}
 
 	for _, parent := range cominf.parents {
-		if err := validateCommitOrTag(p, parent, commitend, false, true); err != nil {
+		if err := validateCommitOrTag(p, parent, seen, false, true); err != nil {
 			return err
 		}
 	}
@@ -918,7 +922,10 @@ func validateCommitContents(p storage.ProjectStorageDriver, r io.ReadCloser, com
 	return nil
 }
 
-func validateBlob(p storage.ProjectStorageDriver, blobid storage.ObjectID) error {
+func validateBlob(p storage.ProjectStorageDriver, blobid storage.ObjectID, seen objectIDSearcher) error {
+	if !seen.Add(blobid) {
+		return nil
+	}
 	objtype, _, r, err := p.ReadObject(blobid)
 	if err != nil {
 		return err
@@ -930,12 +937,10 @@ func validateBlob(p storage.ProjectStorageDriver, blobid storage.ObjectID) error
 	return nil
 }
 
-func validateTree(p storage.ProjectStorageDriver, treeid storage.ObjectID, seentrees []storage.ObjectID) error {
-	for _, seen := range seentrees {
-		if treeid == seen {
-			// We have already verified this tree
-			return nil
-		}
+func validateTree(p storage.ProjectStorageDriver, treeid storage.ObjectID, seen objectIDSearcher) error {
+	if !seen.Add(treeid) {
+		// We have already verified this tree
+		return nil
 	}
 	objtype, _, r, err := p.ReadObject(treeid)
 	if err != nil {
@@ -957,11 +962,11 @@ func validateTree(p storage.ProjectStorageDriver, treeid storage.ObjectID, seent
 			// not validate it... The Git client itself will also silently ignore it anyway.
 		} else if entry.mode.IsDir() {
 			// This is a subtree
-			if err := validateTree(p, entry.objectid, append(seentrees, treeid)); err != nil {
+			if err := validateTree(p, entry.objectid, seen); err != nil {
 				return err
 			}
 		} else {
-			if err := validateBlob(p, entry.objectid); err != nil {
+			if err := validateBlob(p, entry.objectid, seen); err != nil {
 				return err
 			}
 		}
