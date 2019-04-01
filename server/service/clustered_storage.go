@@ -73,8 +73,9 @@ type clusterStorageDriverObject struct {
 }
 
 type clusterStorageDriverStagedObject struct {
-	driver *clusterStorageProjectPushDriverInstance
-	inner  storage.StagedObject
+	driver  *clusterStorageProjectPushDriverInstance
+	inner   storage.StagedObject
+	syncout bool
 }
 
 func (o *clusterStorageDriverObject) Read(p []byte) (in int, err error) {
@@ -627,9 +628,14 @@ func (d *clusterStorageProjectDriverInstance) GetPusher(pushuuid string) storage
 func (d *clusterStorageProjectPushDriverInstance) StageObject(objtype storage.ObjectType, objsize uint) (storage.StagedObject, error) {
 	// For writing, just write directly to underlying storage
 	inner, err := d.innerPusher.StageObject(objtype, objsize)
+	isdelta := false
+	if objtype == storage.ObjectTypeOfsDelta || objtype == storage.ObjectTypeRefDelta {
+		isdelta = true
+	}
 	return &clusterStorageDriverStagedObject{
-		driver: d,
-		inner:  inner,
+		driver:  d,
+		inner:   inner,
+		syncout: !isdelta,
 	}, err
 }
 
@@ -690,6 +696,8 @@ func (o *clusterStorageDriverStagedObject) Finalize(objid storage.ObjectID) (sto
 		return storage.ZeroID, err
 	}
 
-	o.driver.startObjectSync(calced)
+	if o.syncout {
+		o.driver.startObjectSync(calced)
+	}
 	return calced, nil
 }
