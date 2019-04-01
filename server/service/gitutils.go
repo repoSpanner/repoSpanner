@@ -140,9 +140,7 @@ func sendSideBandPacket(ctx context.Context, w io.Writer, sb sideBand, packet []
 }
 
 func (cfg *Service) debugPacket(ctx context.Context, w io.Writer, msg string) {
-	if cfg.Debug {
-		sendSideBandPacket(ctx, w, sideBandProgress, []byte(msg+"\n"))
-	}
+	sendSideBandPacket(ctx, w, sideBandProgress, []byte(msg+"\n"))
 }
 
 func (cfg *Service) maybeSayHello(ctx context.Context, w io.Writer) {
