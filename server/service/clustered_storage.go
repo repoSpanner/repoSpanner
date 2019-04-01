@@ -60,6 +60,8 @@ type clusterStorageProjectPushDriverInstance struct {
 	objectSyncAllSubmitted bool
 	objectSyncNewObjects   *sync.Cond
 	syncersWg              *sync.WaitGroup
+
+	innerPusher storage.ProjectStoragePushDriver
 }
 
 type clusterStorageDriverObject struct {
@@ -596,6 +598,8 @@ func (d *clusterStorageProjectDriverInstance) GetPusher(pushuuid string) storage
 		objectSyncNewObjects:   sync.NewCond(new(sync.Mutex)),
 
 		syncersWg: new(sync.WaitGroup),
+
+		innerPusher: d.inner.GetPusher(pushuuid),
 	}
 
 	if err := inst.dbPrepare(); err != nil {
@@ -622,10 +626,7 @@ func (d *clusterStorageProjectDriverInstance) GetPusher(pushuuid string) storage
 
 func (d *clusterStorageProjectPushDriverInstance) StageObject(objtype storage.ObjectType, objsize uint) (storage.StagedObject, error) {
 	// For writing, just write directly to underlying storage
-	// TODO: Handle recursive non-tree pusher
-	pusher := d.d.inner.GetPusher(d.pushuuid)
-
-	inner, err := pusher.StageObject(objtype, objsize)
+	inner, err := d.innerPusher.StageObject(objtype, objsize)
 	return &clusterStorageDriverStagedObject{
 		driver: d,
 		inner:  inner,
