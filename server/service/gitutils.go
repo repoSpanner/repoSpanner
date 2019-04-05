@@ -1341,30 +1341,15 @@ func writeTemporaryPackFile(r packedReportFunc, p storage.ProjectStorageDriver, 
 	return
 }
 
-func flushToFrom(w io.Writer, r io.Reader, expected uint) (int, error) {
-	totalsent := 0
-	var buf [1024]byte
-	for {
-		r, err := r.Read(buf[:])
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return totalsent, err
-		}
-		w, err := w.Write(buf[:r])
-		if err != nil {
-			return totalsent, err
-		}
-		if w != r {
-			return totalsent, errors.New("Not full object written")
-		}
-		totalsent += w
+func flushToFrom(w io.Writer, r io.Reader, expected uint) (int64, error) {
+	totalsent, err := io.Copy(w, r)
+	if err != nil {
+		return totalsent, err
 	}
-	if expected != 0 && uint(totalsent) != expected {
-		return totalsent, errors.New("Not expected number of bytes flushed")
+	if totalsent != int64(expected) {
+		return totalsent, errors.New("Not full object written")
 	}
-	return totalsent, nil
+	return totalsent, err
 }
 
 func writeObjectHeader(w io.Writer, objtype storage.ObjectType, objsize uint) error {
