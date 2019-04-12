@@ -209,7 +209,7 @@ const (
 
 var (
 	testedCloneMethods = []cloneMethod{
-		//cloneMethodHTTPS,
+		cloneMethodHTTPS,
 		cloneMethodSSH,
 	}
 )
@@ -680,6 +680,12 @@ func createTestConfig(t tester, node string, nodenr nodeNrType, extras ...string
 			-1,
 		)
 	}
+	examplecfg = strings.Replace(
+		examplecfg,
+		"debug: false",
+		"debug: true",
+		-1,
+	)
 
 	var key string
 	for _, arg := range extras {
