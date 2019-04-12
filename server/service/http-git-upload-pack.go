@@ -12,6 +12,115 @@ import (
 	"repospanner.org/repospanner/server/storage"
 )
 
+func maybeSendReply(ctx context.Context, reply []byte, stateless bool, replies [][]byte, rw io.Writer) [][]byte {
+	if stateless {
+		return append(replies, reply)
+	}
+
+	sendPacket(ctx, rw, reply)
+	return replies
+}
+
+func determineToSend(ctx context.Context, projectstore storage.ProjectStorageDriver, w io.Writer, r io.Reader, wants []storage.ObjectID, isStateless bool) (stopSending bool, tosend objectIDSearcher, common objectIDSearcher) {
+	reqlogger := loggerFromCtx(ctx)
+
+	multiAck := 0
+	if hasCapab(ctx, "multi_ack_detailed") {
+		multiAck = 2
+	} else if hasCapab(ctx, "multi_ack") {
+		multiAck = 1
+	}
+	tosend = newObjectIDSearch()
+	common = newObjectIDSearch()
+	noDone := hasCapab(ctx, "no-done")
+
+	common = newObjectIDSearch()
+	nrHaves := 0
+	lastHex := storage.ZeroID
+	gotCommon := false
+	gotOther := false
+	isReady := false
+	sentReady := false
+
+	for {
+		have, isdone, iseof, err := readHavePacket(ctx, r)
+		if err != nil {
+			panic(err)
+		}
+
+		if iseof {
+			if multiAck == 2 && gotCommon && !gotOther && isReady {
+				sentReady = true
+				sendPacket(ctx, w, []byte("ACK "+lastHex+" ready\n"))
+			}
+			if nrHaves == 0 || multiAck > 0 {
+				sendPacket(ctx, w, []byte("NAK\n"))
+			}
+			if noDone && sentReady {
+				sendPacket(ctx, w, []byte("ACK "+lastHex+"\n"))
+				return
+			}
+			if isStateless {
+				stopSending = true
+				return
+			}
+			gotCommon = false
+			gotOther = false
+			continue
+		}
+
+		if isdone {
+			if nrHaves > 0 {
+				if multiAck > 0 {
+					sendPacket(ctx, w, []byte("ACK "+lastHex+"\n"))
+					return
+				}
+			}
+			sendPacket(ctx, w, []byte("NAK\n"))
+			return
+		}
+
+		// We got a valid "have"
+		has, err := hasObject(projectstore, have)
+		if err != nil {
+			panic(err)
+		}
+		nrHaves++
+		lastHex = have
+		if has {
+			gotCommon = true
+			if multiAck == 2 {
+				sendPacket(ctx, w, []byte("ACK "+have+" common\n"))
+			} else if multiAck == 1 {
+				sendPacket(ctx, w, []byte("ACK "+have+" continue\n"))
+			} else {
+				sendPacket(ctx, w, []byte("ACK "+have+"\n"))
+			}
+
+			var enough bool
+			common.Add(have)
+			enough, tosend, err = hasEnoughHaves(ctx, projectstore, wants, common)
+			if err != nil {
+				panic(err)
+			}
+			if enough {
+				reqlogger.Info("Has enough info!")
+				isReady = true
+			}
+		} else {
+			// Not a common object
+			gotOther = true
+			if multiAck > 0 && isReady {
+				if multiAck == 2 {
+					sendPacket(ctx, w, []byte("ACK "+have+" ready\n"))
+				} else {
+					sendPacket(ctx, w, []byte("ACK "+have+" continue\n"))
+				}
+			}
+		}
+	}
+}
+
 func (cfg *Service) serveGitUploadPack(ctx context.Context, w http.ResponseWriter, r *http.Request, reponame string) {
 	reqlogger := loggerFromCtx(ctx)
 
@@ -41,73 +150,18 @@ func (cfg *Service) serveGitUploadPack(ctx context.Context, w http.ResponseWrite
 
 	reqlogger.Debug("Got request wants")
 
-	multiAck := hasCapab(ctx, "multi_ack")
-	multiAckDetailed := hasCapab(ctx, "multi_ack_detailed")
-	sentdone := false
-	commonObjects := newObjectIDSearch()
-	firstCommon := storage.ZeroID
-	isReady := false
-	sentReady := false
-	var commitsToSend objectIDSearcher
-	for {
-		have, isdone, iseof, err := readHavePacket(ctx, bodyreader)
-		if err != nil {
-			panic(err)
-		}
-		if isdone {
-			sentdone = true
-			break
-		}
-		if iseof {
-			break
-		}
+	isrepobridge := len(r.Header[http.CanonicalHeaderKey("X-RepoBridge-Version")]) == 1
+	isStateless := !isrepobridge
+	stopSending, commitsToSend, commonObjects := determineToSend(ctx, projectstore, rw, bodyreader, wants, isStateless)
 
-		if isReady {
-			// We have enough info to generate a pack, ack blindly
-			if multiAckDetailed {
-				sendPacket(ctx, rw, []byte("ACK "+have+" common\n"))
-			} else if multiAck {
-				sendPacket(ctx, rw, []byte("ACK "+have+"\n"))
-			}
-			continue
-		}
+	reqlogger.WithFields(logrus.Fields{
+		"stopSending":   stopSending,
+		"commitsToSend": commitsToSend,
+		"commonObjects": commonObjects,
+	}).Info("Got send information")
 
-		has, err := hasObject(projectstore, have)
-		if err != nil {
-			panic(err)
-		}
-		if has {
-			commonObjects.Add(have)
-			enough, tosend, err := hasEnoughHaves(ctx, projectstore, wants, commonObjects)
-			if err != nil {
-				panic(err)
-			}
-			if enough {
-				reqlogger.Debug("We now have enough info to generate a packfile")
-				// We have enough
-				isReady = true
-				commitsToSend = tosend
-			}
-			firstCommon = have
-			if multiAckDetailed {
-				sendPacket(ctx, rw, []byte("ACK "+have+" common\n"))
-				if enough && !sentReady {
-					sendPacket(ctx, rw, []byte("ACK "+have+" ready\n"))
-					sentReady = true
-				}
-			} else if multiAck {
-				sendPacket(ctx, rw, []byte("ACK "+have+"\n"))
-			}
-		}
-	}
-	if firstCommon == storage.ZeroID {
-		// send NAK
-		sendPacket(ctx, rw, []byte("NAK\n"))
-	} else {
-		sendPacket(ctx, rw, []byte("ACK "+firstCommon+"\n"))
-	}
-	if !sentdone && !hasCapab(ctx, "no-done") {
-		cfg.debugPacket(ctx, rw, "Not sending pack per request")
+	if stopSending {
+		// We shouldn't be sending, so we're done
 		return
 	}
 
@@ -136,7 +190,7 @@ func (cfg *Service) serveGitUploadPack(ctx context.Context, w http.ResponseWrite
 
 	var commitList []storage.ObjectID
 	recursive := false
-	if commitsToSend == nil {
+	if commitsToSend == nil || commitsToSend.NumEntries() == 0 || commonObjects.NumEntries() == 0 {
 		// We were unable to find anything, just send all wants
 		recursive = true
 		commitList = wants
