@@ -364,13 +364,14 @@ func TestSubmodules(t *testing.T) {
 }
 
 func performSubmoduleTest(t *testing.T, method cloneMethod) {
+	defer testCleanup(t)
+
 	performBrokenRepoTest(t, method, "27")
 }
 
 // performBrokenRepoTest tries pushing and pulling a blob repository from
 // the test suite. This is useful to reproduce bugs from weird repos.
-func performBrokenRepoTest(t *testing.T, method cloneMethod, issue string) {
-	defer testCleanup(t)
+func performBrokenRepoTest(t *testing.T, method cloneMethod, issue string) string {
 	nodea := nodeNrType(1)
 	nodeb := nodeNrType(2)
 	nodec := nodeNrType(3)
@@ -378,6 +379,12 @@ func performBrokenRepoTest(t *testing.T, method cloneMethod, issue string) {
 	createNodes(t, nodea, nodeb, nodec)
 
 	createRepo(t, nodea, "test1", true)
+
+	// Set up hooks
+	runCommand(
+		t, nodeb.Name(),
+		"admin", "repo", "edit", "test1", "--hook-pre-receive", "blobs/test.sh",
+	)
 
 	wdir1 := clone(t, method, nodea, "test1", "admin", true)
 	getBlobRepo(t, wdir1, issue)
@@ -389,7 +396,31 @@ func performBrokenRepoTest(t *testing.T, method cloneMethod, issue string) {
 	}
 
 	// Pull it back
-	clone(t, method, nodeb, "test1", "admin", true)
+	return clone(t, method, nodeb, "test1", "admin", true)
+}
+
+func TestOrphanPushWithHooks(t *testing.T) {
+	// This tests to make sure hook pulls work correctly in the case of new orphan pushes
+	runForTestedCloneMethods(t, performOrphanPushWithHooksTest)
+}
+
+func performOrphanPushWithHooksTest(t *testing.T, method cloneMethod) {
+	defer testCleanup(t)
+
+	clonedir := performBrokenRepoTest(t, method, "61")
+
+	// This repo doesn't have a master. Check out branch5
+	// NOTE TO SELF: Do *NOT* use branch1. That would mean that we have a file called "test1", which trips up the isRawGit bridge check....
+	runRawCommand(t, "git", clonedir, nil, "checkout", "branch5")
+
+	// Create orphaned branch
+	runRawCommand(t, "git", clonedir, nil, "checkout", "--orphan", "testorphan")
+	runRawCommand(t, "git", clonedir, nil, "commit", "-sm", "orphaned branch")
+	runRawCommand(t, "git", clonedir, nil, "remote", "-v")
+	pushout := runRawCommand(t, "git", clonedir, nil, "push", "origin", "testorphan", "--verbose")
+	if !strings.Contains(pushout, "* [new branch]      ") {
+		t.Fatal("Something went wrong in pushing")
+	}
 }
 
 func TestCloneEditPushRecloneSingleNodeEmojiBranch(t *testing.T) {
