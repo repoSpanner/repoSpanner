@@ -183,7 +183,7 @@ func _runRawCommand(t tester, binname, pwd string, envupdates []string, args ...
 func runRawCommand(t tester, binname, pwd string, envupdates []string, args ...string) string {
 	out, err := _runRawCommand(t, binname, pwd, envupdates, args...)
 	if err != nil {
-		t.Fatalf("Error running command")
+		t.Fatalf("Error running command: %s", err)
 	}
 	return out
 }
