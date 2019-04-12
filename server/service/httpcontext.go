@@ -75,6 +75,7 @@ func (cfg *Service) ctxFromReq(w http.ResponseWriter, r *http.Request, server st
 	reqlogger := cfg.log.WithField("server", server)
 	reqlogger = addHTTPHeaderInfo(reqlogger, r)
 	reqlogger = resolveCompression(r, reqlogger)
+	reqlogger = reqlogger.WithField("headers", r.Header)
 
 	if r.TLS != nil {
 		perminfo := cfg.getPermissionInfo(r.TLS)
@@ -123,6 +124,7 @@ func addCapabsToCtx(ctx context.Context, capabs []string) (context.Context, *log
 	}
 	ctx, reqlogger := expandCtxLogger(ctx, logrus.Fields{
 		"sbstatus": sbstatus,
+		"capabs":   capabs,
 	})
 	ctx = context.WithValue(ctx, sbstatusKey, sbstatus)
 	ctx = context.WithValue(ctx, capabsKey, capabs)
