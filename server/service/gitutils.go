@@ -505,8 +505,8 @@ func wantIsReachableFromCommons(p storage.ProjectStorageDriver, want storage.Obj
 	reader.Close()
 
 	if len(info.parents) == 0 {
-		// No further parents to look up, and we weren't common. No commons :(
-		return false, nil
+		// No further parents to look up: parent is ZeroID. Everyone has that!
+		return true, nil
 	}
 	for _, parent := range info.parents {
 		parentReachable, err := wantIsReachableFromCommons(p, parent, common, tosend)
@@ -555,6 +555,7 @@ func readHavePacket(ctx context.Context, r io.Reader) (have storage.ObjectID, is
 	strpkt := strings.TrimSpace(string(pkt))
 
 	if len(pkt) == 0 {
+		iseof = true
 		return
 	}
 
