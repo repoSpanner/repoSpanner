@@ -555,7 +555,6 @@ func readHavePacket(ctx context.Context, r io.Reader) (have storage.ObjectID, is
 	strpkt := strings.TrimSpace(string(pkt))
 
 	if len(pkt) == 0 {
-		isdone = true
 		return
 	}
 
