@@ -474,3 +474,31 @@ func performCompressedContentTest(t *testing.T, method cloneMethod) {
 	wdir2 := clone(t, method, nodea, "test1", "admin", true)
 	testFiles(t, wdir2, 0, 3)
 }
+
+func TestOrphanBranchPush(t *testing.T) {
+	runForTestedCloneMethods(t, performOrphanBranchPushTest)
+}
+
+func performOrphanBranchPushTest(t *testing.T, method cloneMethod) {
+	defer testCleanup(t)
+	nodea := nodeNrType(1)
+
+	createNodes(t, nodea)
+
+	createRepo(t, nodea, "test1", false)
+	runCommand(
+		t, nodea.Name(),
+		"admin", "repo", "edit", "test1", "--hook-pre-receive", "blobs/test.sh",
+	)
+
+	wdir := clone(t, method, nodea, "test1", "admin", true)
+	writeTestFiles(t, wdir, 0, 2)
+	runRawCommand(t, "git", wdir, nil, "commit", "-sm", "Writing our tests")
+
+	runRawCommand(t, "git", wdir, nil, "push", "origin", "master")
+
+	runRawCommand(t, "git", wdir, nil, "checkout", "--orphan", "allalone")
+	writeTestFiles(t, wdir, 3, 3)
+	runRawCommand(t, "git", wdir, nil, "commit", "-sm", "Some lonely test files")
+	runRawCommand(t, "git", wdir, nil, "push", "origin", "allalone")
+}
