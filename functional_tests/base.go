@@ -214,6 +214,15 @@ var (
 	}
 )
 
+func runCloneMethodIndependentTest(t *testing.T) bool {
+	testedMethod := os.Getenv("REPOSPANNER_FUNCTIONAL_CLONE_METHOD")
+	if testedMethod == "" || testedMethod == "indep" {
+		return true
+	}
+	t.Log("Skipping clonemethod independent test")
+	return false
+}
+
 func runForTestedCloneMethods(t *testing.T, m func(*testing.T, cloneMethod)) {
 	torun := testedCloneMethods
 	testedMethod := os.Getenv("REPOSPANNER_FUNCTIONAL_CLONE_METHOD")
@@ -221,6 +230,9 @@ func runForTestedCloneMethods(t *testing.T, m func(*testing.T, cloneMethod)) {
 		torun = []cloneMethod{cloneMethodSSH}
 	} else if testedMethod == "https" {
 		torun = []cloneMethod{cloneMethodHTTPS}
+	} else if testedMethod == "indep" {
+		t.Log("Skipping clonemethod dependent test")
+		return
 	}
 	for _, method := range torun {
 		createTestDirectory(t)

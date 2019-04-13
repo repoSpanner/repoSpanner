@@ -10,6 +10,10 @@ import (
 )
 
 func TestWeakKeysNotInHelp(t *testing.T) {
+	if !runCloneMethodIndependentTest(t) {
+		return
+	}
+
 	defer testCleanup(t)
 	createTestConfig(t, "ca", 0)
 
@@ -26,6 +30,9 @@ func TestWeakKeysNotInHelp(t *testing.T) {
 }
 
 func TestCaInit(t *testing.T) {
+	if !runCloneMethodIndependentTest(t) {
+		return
+	}
 	defer testCleanup(t)
 	createTestConfig(t, "ca", 0)
 
@@ -78,6 +85,10 @@ func TestCaInit(t *testing.T) {
 }
 
 func TestCaInitNoNameConstraint(t *testing.T) {
+	if !runCloneMethodIndependentTest(t) {
+		return
+	}
+
 	defer testCleanup(t)
 	createTestConfig(t, "ca", 0)
 
@@ -106,6 +117,10 @@ func TestCaInitNoNameConstraint(t *testing.T) {
 }
 
 func TestCaInitRandomCN(t *testing.T) {
+	if !runCloneMethodIndependentTest(t) {
+		return
+	}
+
 	defer testCleanup(t)
 	createTestConfig(t, "ca", 0)
 
@@ -159,6 +174,10 @@ func TestCaInitRandomCN(t *testing.T) {
 }
 
 func TestCANode(t *testing.T) {
+	if !runCloneMethodIndependentTest(t) {
+		return
+	}
+
 	defer testCleanup(t)
 	createTestCA(t)
 
@@ -169,6 +188,10 @@ func TestCANode(t *testing.T) {
 }
 
 func TestCaLeaf(t *testing.T) {
+	if !runCloneMethodIndependentTest(t) {
+		return
+	}
+
 	defer testCleanup(t)
 	createTestCA(t)
 

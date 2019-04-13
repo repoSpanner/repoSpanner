@@ -71,6 +71,10 @@ func verifyReposExist(t *testing.T, node nodeNrType, repos ...testRepoInfo) {
 }
 
 func TestRepoManagement(t *testing.T) {
+	if !runCloneMethodIndependentTest(t) {
+		return
+	}
+
 	defer testCleanup(t)
 	nodea := nodeNrType(1)
 	nodeb := nodeNrType(2)
