@@ -113,6 +113,10 @@ func cloneRepository(request datastructures.HookRunRequest) (string, error) {
 		path.Join(workdir, "hookrun", "clone"),
 	)
 	if debug {
+		cmd.Env = []string{
+			"GIT_TRACE=2",
+			"GIT_TRACE_PACKET=1",
+		}
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 	}
@@ -163,6 +167,10 @@ func fetchFakeRefs(request datastructures.HookRunRequest, workdir string) error 
 	)
 	cmd.Dir = path.Join(workdir, "hookrun", "clone")
 	if debug {
+		cmd.Env = []string{
+			"GIT_TRACE=2",
+			"GIT_TRACE_PACKET=1",
+		}
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 	}
