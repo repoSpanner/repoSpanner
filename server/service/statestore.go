@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -735,10 +736,12 @@ func (store *stateStore) getPushResult(req *pb.PushRequest) (result PushResult) 
 
 const maxRetries = 3
 
-func (store *stateStore) performPush(req *pb.PushRequest) PushResult {
+func (store *stateStore) performPush(ctx context.Context, req *pb.PushRequest) PushResult {
+	reqlogger := loggerFromCtx(ctx)
 	result := store.getPushResult(req)
 
 	if result.success {
+		reqlogger.Debug("Initial check success, sending to raft")
 		creq := &pb.ChangeRequest{
 			Ctype:   pb.ChangeRequest_PUSHREQUEST.Enum(),
 			Pushreq: req,
@@ -762,15 +765,18 @@ func (store *stateStore) performPush(req *pb.PushRequest) PushResult {
 		for {
 			select {
 			case msg := <-crC:
+				reqlogger.Debug("Got announced message", msg)
 				pushresp := msg.GetPushreq()
 				if pushresp == nil {
 					// Something changed other than a push.....
+					reqlogger.Debug("Non-push occured")
 					result.logerror = errors.New("Non-push response received")
 					result.clienterror = errors.New("Something strange happened to this repo")
 					result.success = false
 					return result
 				}
 
+				reqlogger.Debug("Push went through for ", pushresp.UUID())
 				if req.UUID() == pushresp.UUID() || req.Equals(pushresp) {
 					// Done!
 					return result
@@ -806,6 +812,7 @@ func (store *stateStore) processPush(req *pb.PushRequest) {
 		panic("Push on invalid repo detected")
 	}
 
+	store.cfg.log.Debug("Attempting to apply", req)
 	result := store.getPushResult(req)
 	if !result.success {
 		store.cfg.log.Error("Applied PushRequest was impossible....")
@@ -831,5 +838,6 @@ func (store *stateStore) processPush(req *pb.PushRequest) {
 		}
 	}
 
+	store.cfg.log.Debug("New info:", info)
 	store.repoinfos[req.GetReponame()] = info
 }
