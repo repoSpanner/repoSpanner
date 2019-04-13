@@ -20,6 +20,10 @@ func nodeInfoVerification(t *testing.T, node nodeNrType) {
 }
 
 func TestJoin(t *testing.T) {
+	if !runCloneMethodIndependentTest(t) {
+		return
+	}
+
 	defer testCleanup(t)
 	nodea := nodeNrType(1)
 	nodeb := nodeNrType(2)

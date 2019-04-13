@@ -27,6 +27,10 @@ func performEmptyCloneTest(t *testing.T, method cloneMethod) {
 }
 
 func TestAnonymousClones(t *testing.T) {
+	if !runCloneMethodIndependentTest(t) {
+		return
+	}
+
 	defer testCleanup(t)
 	nodea := nodeNrType(1)
 	nodeb := nodeNrType(2)

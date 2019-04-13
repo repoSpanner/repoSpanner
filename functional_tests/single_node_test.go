@@ -6,6 +6,10 @@ import (
 )
 
 func TestSpawn(t *testing.T) {
+	if !runCloneMethodIndependentTest(t) {
+		return
+	}
+
 	defer testCleanup(t)
 	nodea := nodeNrType(1)
 	createNodeCert(t, nodea)
@@ -31,6 +35,10 @@ func TestSpawn(t *testing.T) {
 }
 
 func TestSimpleRun(t *testing.T) {
+	if !runCloneMethodIndependentTest(t) {
+		return
+	}
+
 	defer testCleanup(t)
 	nodea := nodeNrType(1)
 	spawnNode(t, nodea)
