@@ -364,6 +364,7 @@ func _clone(t tester, method cloneMethod, node nodeNrType, reponame, username, o
 
 	runRawCommand(t, "git", ourdir, envupdates, "config", "user.name", "testuser "+username)
 	runRawCommand(t, "git", ourdir, envupdates, "config", "user.email", username+"@"+testCluster)
+	runRawCommand(t, "git", ourdir, envupdates, "config", "push.default", "simple")
 
 	return ourdir
 }
