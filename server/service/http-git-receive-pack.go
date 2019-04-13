@@ -34,6 +34,12 @@ func (cfg *Service) serveGitReceivePack(ctx context.Context, w http.ResponseWrit
 		sendPacket(ctx, rw, []byte("ERR Invalid request"))
 		return
 	}
+	reqlogger.Debug("Info to update: ", toupdate)
+	if len(toupdate.GetRequests()) == 0 {
+		reqlogger.Debug("Empty push attempted?")
+		sendPacket(ctx, rw, []byte("ERR Invalid request: empty push"))
+		return
+	}
 	ctx, reqlogger, err = addCapabsToCtx(ctx, capabs)
 	if err != nil {
 		reqlogger.WithError(err).Info("Invalid request received")
@@ -314,7 +320,7 @@ func (cfg *Service) performReceivePack(ctx context.Context, hdrs http.Header, re
 	cfg.debugPacket(ctx, rw, "Objects synced")
 
 	cfg.debugPacket(ctx, rw, "Requesting push...")
-	pushresult := cfg.statestore.performPush(toupdate)
+	pushresult := cfg.statestore.performPush(ctx, toupdate)
 	cfg.debugPacket(ctx, rw, "Push results in")
 
 	reqlogger.WithFields(logrus.Fields{

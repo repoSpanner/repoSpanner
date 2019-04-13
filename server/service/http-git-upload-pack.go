@@ -158,16 +158,18 @@ func (cfg *Service) serveGitUploadPack(ctx context.Context, w http.ResponseWrite
 		"stopSending":   stopSending,
 		"commitsToSend": commitsToSend,
 		"commonObjects": commonObjects,
-	}).Info("Got send information")
+	}).Debug("Got send information")
 
 	if stopSending {
 		// We shouldn't be sending, so we're done
+		reqlogger.Debug("Not sending packfile")
 		return
 	}
 
 	rw.isfullyread = true
 
 	cfg.maybeSayHello(ctx, rw)
+	reqlogger.Debug("Building packfile")
 	cfg.debugPacket(ctx, rw, "Building packfile")
 
 	lastNumObjectsPackedReported := 0
