@@ -215,7 +215,14 @@ var (
 )
 
 func runForTestedCloneMethods(t *testing.T, m func(*testing.T, cloneMethod)) {
-	for _, method := range testedCloneMethods {
+	torun := testedCloneMethods
+	testedMethod := os.Getenv("REPOSPANNER_FUNCTIONAL_CLONE_METHOD")
+	if testedMethod == "ssh" {
+		torun = []cloneMethod{cloneMethodSSH}
+	} else if testedMethod == "https" {
+		torun = []cloneMethod{cloneMethodHTTPS}
+	}
+	for _, method := range torun {
 		createTestDirectory(t)
 		m(t, method)
 		testCleanup(t)

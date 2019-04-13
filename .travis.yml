@@ -11,16 +11,21 @@ go:
 env:
   global:
     - GO111MODULE=on
+  matrix:
+    - REPOSPANNER_FUNCTIONAL_CLONE_METHOD=ssh
+    - REPOSPANNER_FUNCTIONAL_CLONE_METHOD=https
 matrix:
   fast_finish: true
   include:
     - env:
-      - GO111MODULE=on
-      - EXTRATAGS=stress
+      - REPOSPANNER_FUNCTIONAL_CLONE_METHOD=ssh EXTRATAGS=stress
+    - env:
+      - REPOSPANNER_FUNCTIONAL_CLONE_METHOD=https EXTRATAGS=stress
   allow_failures:
     - env:
-      - GO111MODULE=on
-      - EXTRATAGS=stress
+      - REPOSPANNER_FUNCTIONAL_CLONE_METHOD=ssh EXTRATAGS=stress
+    - env:
+      - REPOSPANNER_FUNCTIONAL_CLONE_METHOD=https EXTRATAGS=stress
     - go: master
 go_import_path: repospanner.org/repospanner
 before_script:
