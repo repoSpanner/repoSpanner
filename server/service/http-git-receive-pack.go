@@ -25,7 +25,7 @@ func (cfg *Service) serveGitReceivePack(ctx context.Context, w http.ResponseWrit
 	bodyreader := bufio.NewReader(r.Body)
 	rw := newWrappedResponseWriter(w)
 
-	reqlogger.Debug("git-receive-pack requested")
+	reqlogger.Info("git-receive-pack requested")
 
 	capabs, toupdate, err := cfg.readDownloadPacketRequestHeader(ctx, bodyreader, reponame)
 	if err != nil {
@@ -36,7 +36,7 @@ func (cfg *Service) serveGitReceivePack(ctx context.Context, w http.ResponseWrit
 	}
 	reqlogger.Debug("Info to update: ", toupdate)
 	if len(toupdate.GetRequests()) == 0 {
-		reqlogger.Debug("Empty push attempted?")
+		reqlogger.Info("Empty push attempted?")
 		sendPacket(ctx, rw, []byte("ERR Invalid request: empty push"))
 		return
 	}
@@ -79,7 +79,7 @@ func (cfg *Service) serveGitReceivePack(ctx context.Context, w http.ResponseWrit
 	defer hookrun.close()
 	err = cfg.performReceivePack(ctx, r.Header, reqlogger, bodyreader, rw, reponame, capabs, toupdate, hookrun)
 	if err == errDisconnected {
-		reqlogger.Debug("Client disconnected")
+		reqlogger.Info("Client disconnected")
 	} else if err != nil {
 		// TODO
 		userErr := getUserError(err)
@@ -229,7 +229,7 @@ func (cfg *Service) performReceivePack(ctx context.Context, hdrs http.Header, re
 		}
 
 		cfg.debugPacket(ctx, rw, "Delta resolving finished")
-		reqlogger.Debug("Pack file accepted, checksum matches")
+		reqlogger.Info("Pack file accepted, checksum matches")
 	}
 	if ctx.Err() != nil {
 		return errDisconnected
@@ -248,7 +248,7 @@ func (cfg *Service) performReceivePack(ctx context.Context, hdrs http.Header, re
 		return wrapPushError(err, "Object validation failure")
 	}
 	cfg.debugPacket(ctx, rw, "Objects validated")
-	reqlogger.Debug("Objects in request are sufficient")
+	reqlogger.Info("Objects in request are sufficient")
 
 	if ctx.Err() != nil {
 		return errDisconnected
@@ -320,6 +320,7 @@ func (cfg *Service) performReceivePack(ctx context.Context, hdrs http.Header, re
 	cfg.debugPacket(ctx, rw, "Objects synced")
 
 	cfg.debugPacket(ctx, rw, "Requesting push...")
+	reqlogger.Info("Submitting push to the cluster")
 	pushresult := cfg.statestore.performPush(ctx, toupdate)
 	cfg.debugPacket(ctx, rw, "Push results in")
 
@@ -341,7 +342,7 @@ func (cfg *Service) performReceivePack(ctx context.Context, hdrs http.Header, re
 	cfg.debugPacket(ctx, rw, "Post-receive hook done")
 
 	sendPushResult(ctx, rw, pushresult)
-	reqlogger.Debug("Push result sent, we are all done")
+	reqlogger.Info("Push result sent, we are all done")
 	// And... we are done! That was a ride
 	return nil
 }
