@@ -193,6 +193,7 @@ func (cfg *Service) performReceivePack(ctx context.Context, hdrs http.Header, re
 		for gotObjects < numobjects {
 			select {
 			case syncerr := <-pushresultc:
+				reqlogger.WithError(syncerr).Error("sync error occured")
 				return wrapPushError(syncerr, "Error syncing object out to enough nodes")
 
 			case <-ctx.Done():
