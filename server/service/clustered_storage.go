@@ -576,7 +576,7 @@ func (d *clusterStorageProjectDriverInstance) GetPusher(pushuuid string) storage
 
 	db, err := sql.Open(
 		"sqlite3",
-		"file:"+dbpath+"?cache=shared&mode=memory",
+		"file:"+dbpath+"?cache=shared&mode=rwc",
 	)
 	if err != nil {
 		panic(err)
