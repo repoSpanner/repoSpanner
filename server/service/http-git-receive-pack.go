@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -150,6 +151,24 @@ func (cfg *Service) prepareHookRunner(ctx context.Context, hdrs http.Header, inf
 	return hookrun, nil
 }
 
+func (cfg *Service) sendKeepAlives(ctx context.Context, w io.Writer) {
+	ticker := time.NewTicker(10 * time.Second)
+	done := ctx.Done()
+
+	for {
+		select {
+		case <-done:
+			return
+		case <-ticker.C:
+			if ctx.Err() != nil {
+				return
+			}
+			sendSideBandPacket(ctx, w, sideBandProgress, []byte("Keeping connection alive\n"))
+		}
+	}
+
+}
+
 func (cfg *Service) performReceivePack(ctx context.Context, hdrs http.Header, reqlogger *logrus.Entry, bodyreader io.Reader, rw *wrappedResponseWriter, reponame string, capabs []string, toupdate *pb.PushRequest, hookrun hookRunning) error {
 	projectstore := cfg.gitstore.GetProjectStorage(reponame)
 
@@ -237,6 +256,8 @@ func (cfg *Service) performReceivePack(ctx context.Context, hdrs http.Header, re
 	}
 
 	rw.isfullyread = true
+
+	go cfg.sendKeepAlives(ctx, rw)
 
 	// TODO: Determine when to be paranoid and check objects all the way down
 	paranoid := true
