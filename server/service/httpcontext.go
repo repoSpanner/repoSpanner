@@ -66,7 +66,7 @@ func addHTTPHeaderInfo(reqlogger *logrus.Entry, r *http.Request) *logrus.Entry {
 }
 
 func (cfg *Service) ctxFromReq(w http.ResponseWriter, r *http.Request, server string) context.Context {
-	ctx := context.Background()
+	ctx := r.Context()
 
 	ctx = watchCloser(ctx, w)
 
