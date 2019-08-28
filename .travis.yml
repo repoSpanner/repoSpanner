@@ -5,7 +5,6 @@ git:
   # We need the full repo for the metatest
   depth: false
 go:
-  - "1.11"
   - "1.12"
   - master
 env:
