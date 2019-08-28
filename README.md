@@ -33,6 +33,19 @@ nodes that talk and synchronize amongst each other.
 The `nodename.regionname.clustername` should be the FQDNs the nodes use
 to communicate with their peers.
 
+You will need to do a small amount of configuration to get started.
+Copy ```config.yml.example``` to ```/etc/repospanner/config.yml``` and
+edit a few of the settings to match your environment:
+
+* ```admin.url```
+* ```certificates.client.cert```
+* ```certificates.client.key```
+* ```certificates.server.default.cert```
+* ```certificates.server.default.key```
+
+Of course, feel free to stroll through the file and season to taste as
+well.
+
 The repoSpanner binary contains all the tools needed to create the
 Certificate Authority (CA) to perform the pushes.  To initiate a
 cluster, run: `repospanner ca init <cluster-name>`.  E.g.:
