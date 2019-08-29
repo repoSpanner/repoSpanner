@@ -1,0 +1,54 @@
+---
+ca:
+  path: /etc/pki/repospanner
+admin:
+  url:  https://{{ ansible_hostname }}.{{ repospanner_region_name }}.{{ repospanner_cluster }}/
+  ca:   /etc/pki/repospanner/ca.crt
+  cert: /etc/pki/repospanner/admin.crt
+  key:  /etc/pki/repospanner/admin.key
+storage:
+  state: /var/lib/repospanner/state
+  git:
+    type: tree
+    clustered: true
+    directory: /var/lib/repospanner/gitstore
+listen:
+  rpc:  {{ repospanner_admin_address }}:{{ repospanner_admin_port }}
+  http: {{ repospanner_client_address }}:{{ repospanner_client_port }}
+certificates:
+  ca: /etc/pki/repospanner/ca.crt
+  client:
+    cert: /etc/pki/repospanner/{{ ansible_hostname }}.{{ repospanner_region_name }}.crt
+    key: /etc/pki/repospanner/{{ ansible_hostname }}.{{ repospanner_region_name }}.key
+  server:
+    default:
+      cert: /etc/pki/repospanner/{{ ansible_hostname }}.{{ repospanner_region_name }}.crt
+      key: /etc/pki/repospanner/{{ ansible_hostname }}.{{ repospanner_region_name }}.key
+checks:
+  paranoid: false
+hooks:
+  debug: false
+  bubblewrap:
+    enabled: true
+    unshare:
+    - net
+    - ipc
+    - pid
+    - uts
+    share_net: false
+    mount_proc: true
+    mount_dev: true
+    uid:
+    gid:
+    hostname: myhostname
+    bind:
+    ro_bind:
+    - - /usr
+      - /usr
+    symlink:
+    - - usr/lib64
+      - /lib64
+    - - usr/bin
+      - /bin
+  runner: /usr/bin/repohookrunner
+  user: 0

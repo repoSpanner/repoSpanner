@@ -1,0 +1,62 @@
+---
+- name: Check if repospanner is already installed
+  stat:
+    path: "{{ repospanner_prefix }}/bin/repospanner"
+  register: repospanner_stat
+
+- name: Build and install repospanner
+  block:
+    - name: Install build dependencies
+      package:
+        name: "{{ repospanner_build_deps }}"
+
+    - name: Clone repospanner
+      git:
+        repo: "{{ repospanner_repo }}"
+        dest: "{{ repospanner_clone_path }}"
+        # We force this because our lineinfile later causes a local change in the repo, which causes
+        # subsequent runs of this task to fail
+        force: true
+        version: "{{ repospanner_version }}"
+
+    - name: Build repospanner
+      command: "{{ repospanner_clone_path }}/build.sh"
+      args:
+        chdir: "{{ repospanner_clone_path }}"
+
+    - name: Configure the install path in the systemd unit
+      lineinfile:
+        backrefs: yes
+        dest: "{{ repospanner_clone_path }}/repospanner.service"
+        regexp: ExecStart=/usr/local/bin/repospanner serve
+        line: "ExecStart={{ repospanner_prefix }}/bin/repospanner serve"
+
+    - name: Install repospanner
+      copy:
+        remote_src: true
+        dest: "{{ repospanner_prefix }}/bin/{{ item }}"
+        src: "{{ repospanner_clone_path }}/{{ item }}"
+        mode: 0755
+      with_items:
+        - repobridge
+        - repohookrunner
+        - repospanner
+
+    - name: Install systemd unit
+      copy:
+        remote_src: true
+        src: "{{ repospanner_clone_path }}/repospanner.service"
+        dest: /etc/systemd/system/repospanner.service
+  when: repospanner_update or repospanner_stat.stat.exists == False
+
+- name: Create /etc/repospanner
+  file:
+    state: directory
+    path: /etc/repospanner
+    mode: 0755
+
+- name: Configure repospanner
+  template:
+    src: config.yml.j2
+    dest: /etc/repospanner/config.yml
+    mode: 0644

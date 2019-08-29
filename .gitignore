@@ -23,7 +23,6 @@ vendor/
 *.crt
 *.key
 *.yaml
-*.yml
 *.tks
 !.mergify.yml
 !.travis.yml
