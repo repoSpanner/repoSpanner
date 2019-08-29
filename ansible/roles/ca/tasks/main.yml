@@ -1,0 +1,53 @@
+---
+- name: Initialize the CA
+  command: "{{ repospanner_prefix }}/bin/repospanner ca init {{ repospanner_cluster }}"
+  args:
+    creates: "/etc/pki/repospanner/ca.key"
+
+- name: Create node certificates
+  command: "{{ repospanner_prefix }}/bin/repospanner ca node {{ hostvars[item]['repospanner_region_name'] }} {{ hostvars[item]['ansible_hostname'] }}"
+  args:
+    creates: "/etc/pki/repospanner/{{ hostvars[item]['ansible_hostname'] }}.{{ hostvars[item]['repospanner_region_name'] }}.key"
+  with_items: "{{ repospanner_nodes }}"
+
+- name: Slurp the CA
+  slurp:
+    src: /etc/pki/repospanner/ca.crt
+  register: repospanner_ca_slurp
+
+- name: Slurp node certificates
+  slurp:
+    src: "/etc/pki/repospanner/{{ hostvars[item]['ansible_hostname'] }}.{{ hostvars[item]['repospanner_region_name'] }}.crt"
+  register: "certificates"
+  with_items: "{{ repospanner_nodes }}"
+
+- name: Slurp node keys
+  slurp:
+    src: "/etc/pki/repospanner/{{ hostvars[item]['ansible_hostname'] }}.{{ hostvars[item]['repospanner_region_name'] }}.key"
+  register: "keys"
+  with_items: "{{ repospanner_nodes }}"
+
+- name: Set node ca fact
+  set_fact:
+    repospanner_ca_cert: "{{ repospanner_ca_slurp.content | b64decode }}"
+  delegate_to: "{{ item }}"
+  delegate_facts: true
+  with_items: "{{ repospanner_nodes }}"
+
+- name: Set node certificate facts
+  set_fact:
+    repospanner_node_cert: "{{ item.content | b64decode }}"
+  delegate_to: "{{ item.item }}"
+  delegate_facts: true
+  # We don't want Ansible to print this out to the terminal
+  no_log: true
+  with_items: "{{ certificates.results }}"
+
+- name: Set node key facts
+  set_fact:
+    repospanner_node_key: "{{ item.content | b64decode }}"
+  delegate_to: "{{ item.item }}"
+  delegate_facts: true
+  # We don't want Ansible to print this out to the terminal
+  no_log: true
+  with_items: "{{ keys.results }}"

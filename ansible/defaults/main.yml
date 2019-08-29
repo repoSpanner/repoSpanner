@@ -1,0 +1,40 @@
+---
+## Install settings
+
+# A list of build dependencies needed for repospanner
+repospanner_build_deps:
+  - golang
+# Where to clone the repo to
+repospanner_clone_path: /tmp/repospanner
+# Where to install repospanner (it will go into a bin/ folder inside this path, so by default it
+# will be /usr/bin/{repospanner,repohookrunner,repobridge}
+repospanner_prefix: /usr
+# Where to clone repospanner from
+repospanner_repo: https://github.com/repoSpanner/repoSpanner.git
+# Whether to update the repospanner deployment on each run of the playbook. Defaults to true.
+repospanner_update: true
+# Which git ref to install
+repospanner_version: master
+
+
+## Config file settings
+
+# The address that the repospanner admin interface listens on
+repospanner_admin_address: "0.0.0.0"
+# The address that the repospanner client interface listens on
+repospanner_client_address: "0.0.0.0"
+# The port that the repospanner admin interface listens on
+repospanner_admin_port: 8443
+# The port that the repospanner client interface listens on
+repospanner_client_port: 443
+# The top level domain name of the repospanner cluster
+repospanner_cluster: repospanner.example.com
+# The name of this node's region
+repospanner_region_name: dc0
+
+
+# CA settings
+# The CA needs to know a list of the nodes in order to generate their client certificates and keys.
+# This setting should simply be a list of node hostnames. It defaults to the hosts in the Ansible
+# group named repospanner_nodes.
+repospanner_nodes: "{{ groups['repospanner_nodes'] }}"

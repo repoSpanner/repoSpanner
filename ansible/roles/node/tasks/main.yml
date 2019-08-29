@@ -1,0 +1,70 @@
+---
+- name: Create /etc/pki/repospanner
+  file:
+    state: directory
+    path: /etc/pki/repospanner
+    mode: 0700
+
+- name: Install CA cert
+  copy:
+    content: "{{ repospanner_ca_cert }}"
+    dest: /etc/pki/repospanner/ca.crt
+    mode: 0644
+
+- name: Install node cert
+  copy:
+    content: "{{ repospanner_node_cert }}"
+    dest: "/etc/pki/repospanner/{{ ansible_hostname }}.{{ repospanner_region_name }}.crt"
+    mode: 0644
+
+- name: Install node key
+  copy:
+    content: "{{ repospanner_node_key }}"
+    dest: "/etc/pki/repospanner/{{ ansible_hostname }}.{{ repospanner_region_name }}.key"
+    mode: 0600
+
+- name: Open the admin firewall port
+  firewalld:
+    port: "{{ repospanner_admin_port }}/tcp"
+    state: enabled
+    permanent: true
+    immediate: true
+
+- name: Open the client firewall port
+  firewalld:
+    port: "{{ repospanner_client_port }}/tcp"
+    state: enabled
+    permanent: true
+    immediate: true
+
+- name: Initialize the lead node database
+  command: repospanner serve --spawn
+  args:
+    creates: /var/lib/repospanner/state/state.json
+  run_once: true
+  when: inventory_hostname == ansible_play_hosts_all[0]
+
+- name: Start the lead node
+  service:
+    name: repospanner
+    enabled: true
+    state: started
+  when: inventory_hostname == ansible_play_hosts_all[0]
+
+# We use shell here because the nodes must join and then start the service one at a time. Without
+# the systemctl start command, one node will join and then the other nodes will wait forever for
+# the node that joined to start its process. This way they can each run through both tasks serially
+# without Ansible blocking and waiting. Note that we still use the service module later to enable
+# the service.
+- name: Join node
+  shell: "repospanner serve --joinnode https://{{ ansible_play_hosts_all[0] }}:{{ repospanner_admin_port }} && systemctl start repospanner"
+  args:
+    creates: /var/lib/repospanner/state/state.json
+  when: inventory_hostname != ansible_play_hosts_all[0]
+
+- name: Start the child nodes
+  service:
+    name: repospanner
+    enabled: true
+    state: started
+  when: inventory_hostname != ansible_play_hosts_all[0]
