@@ -1,5 +1,4 @@
-repoSpanner
-===========
+# repoSpanner
 
 repoSpanner is a distributed repository storage server, based around Git.
 
@@ -15,15 +14,13 @@ push failing due to an attempt to push to the failed node.
 *Note*: As a consequence of this, it is strongly suggested to deploy
 regions with odd numbers of nodes.
 
-Build repoSpanner
------------------
+## Build repoSpanner
 
 Make sure you have a Go toolchain available, and run:
 
     $ ./build.sh
 
-Deployment
-----------
+## Deployment
 
 A repoSpanner deployment is called a "cluster", which consists of one or
 more "regions", which contain one or more "nodes".  A cluster contains
@@ -90,10 +87,20 @@ And then run:
 
 Or, again, start the `repospanner.service` unit file.
 
-Repository access
------------------
+## Repository access
 
 After this, the service will be available on https://<node.fqdn>/
+
+### Create
+
+You can create repositories with ```repospanner admin repo create <name>```, for
+example:
+
+```
+$ repospanner admin repo create repospanner
+```
+
+### Clone
 
 For git repo pull/push, add a /repo/<repo-name>.git.
 Example clone command for default https port on tcp/443 and repo name being "test"
@@ -113,8 +120,7 @@ in /etc/repospanner.
 This client will automatically revert to plain git if it determines the repo
 that is being pushed to is not a repospanner repository.
 
-Development
------------
+## Development
 
 For development, standard github pull requests are used.
 Most changes do not require special tools other than the standard build
@@ -129,23 +135,20 @@ To run the full test suite, run from the main directory:
 
     $ go test ./...
 
-Tests
------
+## Tests
 
 The project comes with a decent functional test suite.  Explore the
 `repospanner/functional_tests` to see the variety of tests that you can
 run.
 
-Contributions
--------------
+## Contributions
 
 Contributions are most welcome.
 Please make sure to add a `Signed-Off-By` line in your git commit to indicate
 you agree to the Developer Certificate of Origin (DCO) as quoted below.
 To do this, simple add the "-s" flag to your git commit, like: `git commit -s`.
 
-Developer Certificate of Origin
---------------------------------
+## Developer Certificate of Origin
 
 Developer Certificate of Origin
 Version 1.1
