@@ -95,6 +95,9 @@ var (
 	useBubbleWrap bool
 	ticker        *time.Ticker
 	cleanlock     sync.Mutex
+	// This is used to prevent more than one certificate from being signed at once, because doing
+	// that would cause two processes to try to write the same serial file.
+	caLock        sync.Mutex
 )
 
 func killNode(t tester, nodenr nodeNrType) {
@@ -496,16 +499,26 @@ func createRepo(t tester, node nodeNrType, reponame string, public bool) {
 
 func createNodes(t tester, nodes ...nodeNrType) {
 	spawned := false
-	var lastnode nodeNrType
+	var firstnode nodeNrType
+	var wg sync.WaitGroup
+	// This allows us to start the remaining nodes in parallel to ensure that repospanner
+	// correctly handles simultaneous join requests. This tests the fix for
+	// https://github.com/repoSpanner/repoSpanner/issues/78
+	asyncJoin := func(t tester, newnodenr nodeNrType, joiningnode nodeNrType) {
+		defer wg.Done()
+		joinNode(t, newnodenr, joiningnode)
+	}
 	for _, node := range nodes {
 		if !spawned {
 			spawnNode(t, node)
 			spawned = true
+			firstnode = node
 		} else {
-			joinNode(t, node, lastnode)
+			wg.Add(1)
+			go asyncJoin(t, node, firstnode)
 		}
-		lastnode = node
 	}
+	wg.Wait()
 }
 
 func joinNode(t tester, newnodenr nodeNrType, joiningnode nodeNrType) {
@@ -562,6 +575,9 @@ func startNode(t tester, node nodeNrType) {
 func createNodeCert(t tester, node nodeNrType) {
 	createTestCA(t)
 	createTestConfig(t, node.Name(), node)
+	// We need to lock the CA because if two run at once, one of them will get a blank serial
+	caLock.Lock()
+	defer caLock.Unlock()
 	runCommand(t, "ca",
 		"ca", "node", testRegion, node.Name(),
 		insecureKeysFlag,

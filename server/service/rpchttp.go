@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/coreos/etcd/raft/raftpb"
 	"github.com/pkg/errors"
@@ -268,25 +269,43 @@ func (cfg *Service) rpcJoinNode(w http.ResponseWriter, r *http.Request) {
 		NodeID:  joinrequest.NodeID,
 		Context: []byte(joinrequest.RPCURL),
 	}
+
+	retryTimer := time.NewTicker(time.Second)
+	retryCount := 0
+	defer retryTimer.Stop()
+
 	ccC := cfg.statestore.subscribeConfChange()
 	defer cfg.statestore.unsubscribeConfChange(ccC)
 	cfg.statestore.confChangeC <- confchange
-	// TODO: Add a resend timer
-	for msg := range ccC {
-		if msg.NodeID == joinrequest.NodeID {
-			// It's about the current node!
-			if msg.Type == raftpb.ConfChangeAddNode {
-				// We were added!
-				reply.Success = true
-			} else if msg.Type == raftpb.ConfChangeRemoveNode {
-				reply.Success = false
-				reply.ErrorMessage = "Node was removed?"
-			} else {
-				cfg.log.Info("Unexpected config change for node arrived")
+
+	WAITFORCONFCHANGES:
+		for {
+			select {
+			case msg := <-ccC:
+				if msg.NodeID == joinrequest.NodeID {
+					// It's about the current node!
+					if msg.Type == raftpb.ConfChangeAddNode {
+						// We were added!
+						reply.Success = true
+					} else if msg.Type == raftpb.ConfChangeRemoveNode {
+						reply.Success = false
+						reply.ErrorMessage = "Node was removed?"
+					} else {
+						cfg.log.Info("Unexpected config change for node arrived")
+					}
+					break WAITFORCONFCHANGES
+				}
+			case <-retryTimer.C:
+				if retryCount >= 64 {
+					reply.Success = false
+					reply.ErrorMessage = "Timeout while joining nodes"
+					cfg.log.Debug("Timeout while joining nodes")
+					break WAITFORCONFCHANGES
+				}
+
+				retryCount++
 			}
-			break
 		}
-	}
 
 	if reply.Success {
 		cfg.log.Info("Node join request succesful")
