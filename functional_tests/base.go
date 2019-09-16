@@ -401,7 +401,8 @@ func runFailingCommand(t tester, config string, args ...string) string {
 
 func waitForNodeStart(t tester, node nodeNrType, readout io.Reader) {
 	started := make(chan struct{})
-	startTimer := time.NewTimer(5 * time.Second)
+	timeout := 32
+	startTimer := time.NewTimer(time.Duration(timeout) * time.Second)
 
 	go func() {
 		buffer := make([]byte, 0)
@@ -437,7 +438,7 @@ func waitForNodeStart(t tester, node nodeNrType, readout io.Reader) {
 				return
 			}
 		case <-startTimer.C:
-			t.Fatalf("Node %s did not start after 5 seconds", node.Name())
+			t.Fatalf("Node %s did not start after %d seconds", node.Name(), timeout)
 		}
 	}
 }
