@@ -263,6 +263,12 @@ func (store *stateStore) Save() error {
 	return nil
 }
 
+// Start the state store. If the state store is configured to stop after initializing, it
+// will exit when it is initialized, or if it hits a timeout. Otherwise it will run as a
+// daemonized process and send pings to keep the raft alive. Errors encountered while running
+// will be sent into errchan. startedC will be closed when the Raft node has been initialized and
+// will start serving. This can be used to wait for serving publicly until the internals are
+// available.
 func (store *stateStore) RunStateStore(errchan chan<- error, startedC chan<- struct{}) {
 	// First start the raft node
 	go store.raftnode.startRaft(startedC)
