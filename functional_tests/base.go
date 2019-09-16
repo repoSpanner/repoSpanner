@@ -399,6 +399,9 @@ func runFailingCommand(t tester, config string, args ...string) string {
 	return out
 }
 
+// Wait for 32 seconds for the given node to print out messages indicating it has joined the
+// cluster, or call t.Fatalf if this doesn't happen in time. readout is used to read the console
+// output from the node.
 func waitForNodeStart(t tester, node nodeNrType, readout io.Reader) {
 	started := make(chan struct{})
 	timeout := 32
