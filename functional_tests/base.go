@@ -497,6 +497,8 @@ func createRepo(t tester, node nodeNrType, reponame string, public bool) {
 	)
 }
 
+// Start the given list of nodes. The first node will become the spawn node, and the rest of the
+// nodes will join it.
 func createNodes(t tester, nodes ...nodeNrType) {
 	spawned := false
 	var firstnode nodeNrType
