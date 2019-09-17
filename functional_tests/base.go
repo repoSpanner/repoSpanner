@@ -574,6 +574,7 @@ func startNode(t tester, node nodeNrType) {
 	waitForNodeStart(t, node, readout)
 }
 
+// Create a node certificate for the given node.
 func createNodeCert(t tester, node nodeNrType) {
 	createTestCA(t)
 	createTestConfig(t, node.Name(), node)
