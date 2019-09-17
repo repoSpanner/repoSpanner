@@ -155,8 +155,11 @@ func getScripts(request datastructures.HookRunRequest, workdir string) error {
 			return errors.Wrap(err, "Error retrieving hook script")
 		}
 		if resp.StatusCode != 200 {
-			fmt.Fprintln(os.Stderr, "Unable to retrieve hook script")
-			return errors.New("Unable to retrieve hook script")
+			msg := fmt.Sprintf(
+				"Unable to retrieve hook script, received status code %d",
+				resp.StatusCode)
+			fmt.Fprintln(os.Stderr, msg)
+			return errors.New(msg)
 		}
 
 		_, err = io.Copy(script, resp.Body)
