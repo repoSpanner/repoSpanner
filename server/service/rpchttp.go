@@ -253,6 +253,8 @@ type rpcJoinNodeReply struct {
 	NodeInfo     datastructures.NodeInfo
 }
 
+// Handle the API request for a node to join the cluster. w is used to send a reply to the requestor
+// indicating success or failure, and r is used to gather the details of the request.
 func (cfg *Service) rpcJoinNode(w http.ResponseWriter, r *http.Request) {
 	cfg.ctxFromReq(w, r, "rpc")
 
