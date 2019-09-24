@@ -289,7 +289,7 @@ func (store *stateStore) RunStateStore(errchan chan<- error, startedC chan<- str
 			<-store.cfg.logwrapper.HasInitialized
 			store.cfg.Shutdown()
 		}()
-		time.AfterFunc(5*time.Second, func() {
+		time.AfterFunc(32*time.Second, func() {
 			errchan <- errors.New("Not started within the expected time")
 		})
 	} else {

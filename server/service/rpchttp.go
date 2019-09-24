@@ -2,10 +2,12 @@ package service
 
 import (
 	"crypto/tls"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/coreos/etcd/raft/raftpb"
 	"github.com/pkg/errors"
@@ -251,6 +253,8 @@ type rpcJoinNodeReply struct {
 	NodeInfo     datastructures.NodeInfo
 }
 
+// Handle the API request for a node to join the cluster. w is used to send a reply to the requestor
+// indicating success or failure, and r is used to gather the details of the request.
 func (cfg *Service) rpcJoinNode(w http.ResponseWriter, r *http.Request) {
 	cfg.ctxFromReq(w, r, "rpc")
 
@@ -263,36 +267,65 @@ func (cfg *Service) rpcJoinNode(w http.ResponseWriter, r *http.Request) {
 		NodeInfo: cfg.getNodeInfo(),
 	}
 
+	err := cfg.joinNode(joinrequest)
+	if err != nil {
+		cfg.log.Info("Node join failed")
+		reply.ErrorMessage = fmt.Sprintf("%s", err)
+		reply.Success = false
+	} else {
+		cfg.log.Info("Node join request succesful")
+		reply.Success = true
+	}
+
+	cfg.respondJSONResponse(w, reply)
+}
+
+
+// Join the Node given via joinrequest to the cluster.
+func (cfg *Service) joinNode(joinrequest rpcJoinNodeRequest) error {
 	confchange := raftpb.ConfChange{
 		Type:    raftpb.ConfChangeAddNode,
 		NodeID:  joinrequest.NodeID,
 		Context: []byte(joinrequest.RPCURL),
 	}
+
 	ccC := cfg.statestore.subscribeConfChange()
 	defer cfg.statestore.unsubscribeConfChange(ccC)
 	cfg.statestore.confChangeC <- confchange
-	// TODO: Add a resend timer
-	for msg := range ccC {
-		if msg.NodeID == joinrequest.NodeID {
-			// It's about the current node!
-			if msg.Type == raftpb.ConfChangeAddNode {
-				// We were added!
-				reply.Success = true
-			} else if msg.Type == raftpb.ConfChangeRemoveNode {
-				reply.Success = false
-				reply.ErrorMessage = "Node was removed?"
-			} else {
-				cfg.log.Info("Unexpected config change for node arrived")
+
+	return cfg.waitForConfChangeAddNode(ccC, joinrequest)
+}
+
+
+// Wait for etcd to accept our requested config change to add a node. ccC is used to determine when
+// the change has been accepted, and joinrequest is used to determine details about the node we are
+// waiting on.
+func (cfg *Service) waitForConfChangeAddNode(
+		ccC chan raftpb.ConfChange, joinrequest rpcJoinNodeRequest) error {
+	retryTimer := time.NewTicker(time.Second)
+	retryCount := 0
+	defer retryTimer.Stop()
+
+	for {
+		select {
+		case msg := <-ccC:
+			if msg.NodeID == joinrequest.NodeID {
+				// It's about the current node!
+				if msg.Type == raftpb.ConfChangeAddNode {
+					// We were added!
+					return nil
+				} else if msg.Type == raftpb.ConfChangeRemoveNode {
+					return errors.New("Node was removed?")
+				} else {
+					cfg.log.Info("Unexpected config change for node arrived")
+				}
 			}
-			break
+		case <-retryTimer.C:
+			if retryCount >= 64 {
+				cfg.log.Debug("Timeout while joining nodes")
+				return errors.New("Timeout while joining nodes")
+			}
+			retryCount++
 		}
 	}
-
-	if reply.Success {
-		cfg.log.Info("Node join request succesful")
-	} else {
-		cfg.log.Info("Node join failed")
-	}
-
-	cfg.respondJSONResponse(w, reply)
 }
