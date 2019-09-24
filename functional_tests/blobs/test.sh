@@ -10,3 +10,4 @@ cat </dev/stdin
 echo "STDIN DONE"
 echo "LS /"
 ls /
+echo "THIS IS THE NON-BLOCKING HOOK"

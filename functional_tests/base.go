@@ -95,6 +95,9 @@ var (
 	useBubbleWrap bool
 	ticker        *time.Ticker
 	cleanlock     sync.Mutex
+	// This is used to prevent more than one certificate from being signed at once, because doing
+	// that would cause two processes to try to write the same serial file.
+	caLock        sync.Mutex
 )
 
 func killNode(t tester, nodenr nodeNrType) {
@@ -399,9 +402,13 @@ func runFailingCommand(t tester, config string, args ...string) string {
 	return out
 }
 
+// Wait for 32 seconds for the given node to print out messages indicating it has joined the
+// cluster, or call t.Fatalf if this doesn't happen in time. readout is used to read the console
+// output from the node.
 func waitForNodeStart(t tester, node nodeNrType, readout io.Reader) {
 	started := make(chan struct{})
-	startTimer := time.NewTimer(5 * time.Second)
+	timeout := 32
+	startTimer := time.NewTimer(time.Duration(timeout) * time.Second)
 
 	go func() {
 		buffer := make([]byte, 0)
@@ -437,7 +444,7 @@ func waitForNodeStart(t tester, node nodeNrType, readout io.Reader) {
 				return
 			}
 		case <-startTimer.C:
-			t.Fatalf("Node %s did not start after 5 seconds", node.Name())
+			t.Fatalf("Node %s did not start after %d seconds", node.Name(), timeout)
 		}
 	}
 }
@@ -492,16 +499,26 @@ func createRepo(t tester, node nodeNrType, reponame string, public bool) {
 
 func createNodes(t tester, nodes ...nodeNrType) {
 	spawned := false
-	var lastnode nodeNrType
+	var firstnode nodeNrType
+	var wg sync.WaitGroup
+	// This allows us to start the remaining nodes in parallel to ensure that repospanner
+	// correctly handles simultaneous join requests. This tests the fix for
+	// https://github.com/repoSpanner/repoSpanner/issues/78
+	asyncJoin := func(t tester, newnodenr nodeNrType, joiningnode nodeNrType) {
+		defer wg.Done()
+		joinNode(t, newnodenr, joiningnode)
+	}
 	for _, node := range nodes {
 		if !spawned {
 			spawnNode(t, node)
 			spawned = true
+			firstnode = node
 		} else {
-			joinNode(t, node, lastnode)
+			wg.Add(1)
+			go asyncJoin(t, node, firstnode)
 		}
-		lastnode = node
 	}
+	wg.Wait()
 }
 
 func joinNode(t tester, newnodenr nodeNrType, joiningnode nodeNrType) {
@@ -558,6 +575,9 @@ func startNode(t tester, node nodeNrType) {
 func createNodeCert(t tester, node nodeNrType) {
 	createTestCA(t)
 	createTestConfig(t, node.Name(), node)
+	// We need to lock the CA because if two run at once, one of them will get a blank serial
+	caLock.Lock()
+	defer caLock.Unlock()
 	runCommand(t, "ca",
 		"ca", "node", testRegion, node.Name(),
 		insecureKeysFlag,
