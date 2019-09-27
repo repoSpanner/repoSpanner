@@ -100,6 +100,44 @@ in /etc/repospanner.
 This client will automatically revert to plain git if it determines the repo
 that is being pushed to is not a repospanner repository.
 
+
+Operating Repospanner cluster
+-----------------------------
+## TLS/x509 certificates renewal
+As repospanner uses TLS between all components (server to server, client to server, etc), it's important that you check the default validity of those certificates.
+You can use basic openssl command to check default validity (1y per default):
+```
+openssl x509 -in node1.cluster1.crt -noout -text|grep -A 3 Validity
+        Validity
+            Not Before: Sep 17 13:43:13 2018 GMT
+            Not After : Sep 17 13:43:13 2019 GMT
+        Subject: CN=node1.cluster1.domain.org
+```
+
+If you have to renew, you'll have to recreate certififcates with same CN but also exact same NodeID (used in repospanner).
+First you have to find the NodeID for that node :
+
+```
+repospanner ca info /path/to/node1.cluster1.crt 
+Certificate information:
+Subject: node1.cluster1.domain.org
+Certificate type:  Node
+repoSpanner cluster name: domain.org
+repoSpanner region name: cluster1
+repoSpanner Node Name: node1
+repoSpanner Node ID: 2
+```
+
+As we have now identified that Node ID is two, we can just issue a new key/crt for that node (you'll have to delete existing .crt/.key file first otherwise repospanner would complain that those already exist with ```panic: Node certificate exists```) :
+
+```
+repospanner ca node --nodeid 2 --years 30 cluster1 node1
+Done
+
+```
+You can now replace on your node and restart repospanner instance
+
+
 Development
 -----------
 
