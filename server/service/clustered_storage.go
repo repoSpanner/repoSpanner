@@ -285,7 +285,7 @@ func (d *clusterStorageProjectPushDriverInstance) runPeerSyncer(peerid uint64) {
 	mylog.Debug("Starting peer syncer")
 
 	for {
-		nextentry, err := d.dbGetNextObject(peerid)
+		nextentries, err := d.dbGetNextObjects(peerid)
 		if err != nil {
 			d.errchan <- err
 			return
@@ -293,78 +293,80 @@ func (d *clusterStorageProjectPushDriverInstance) runPeerSyncer(peerid uint64) {
 
 		mylog.Debug("Attempted to get an entry to sync")
 
-		if nextentry == storage.ZeroID {
-			// Nothing in the queue for us at this moment
-			d.objectSyncNewObjects.L.Lock()
-			if d.objectSyncAllSubmitted {
+		for _, nextentry := range nextentries {
+			if nextentry == storage.ZeroID {
+				// Nothing in the queue for us at this moment
+				d.objectSyncNewObjects.L.Lock()
+				if d.objectSyncAllSubmitted {
+					d.objectSyncNewObjects.L.Unlock()
+					mylog.Debug("We have synced everything out")
+
+					// We have been told we are all done.
+
+					if retryfile != nil {
+						// If we still had any entries we need to retry, rename the retryfile
+						err := retryfile.Close()
+						if err != nil {
+							mylog.WithError(err).Info("Error storing async retry queue")
+							return
+						}
+						err = os.Rename(retryfilename+".inprogress", retryfilename)
+						if err != nil {
+							mylog.WithError(err).Info("Error renaming async retry queue")
+							return
+						}
+					}
+
+					return
+				}
+
+				// We have no object right now, but more might be inbound.
+				// Wait until we get notified the queues have changed, and then retry
+				mylog.Debug("Nothing to sync out, but not done. Wait")
+				d.objectSyncNewObjects.Wait()
 				d.objectSyncNewObjects.L.Unlock()
-				mylog.Debug("We have synced everything out")
+				mylog.Debug("We were kicked")
+				continue
+			}
 
-				// We have been told we are all done.
+			mylog := mylog.WithField("objectid", nextentry)
+			mylog.Debug("Pushing single object to peer")
 
+			res := d.pushSingleObject(peerid, nextentry)
+			mylog.Debug("Results are in", "result", res)
+			if res == nil {
+				mylog.Debug("Object synced")
+			} else {
+				mylog.WithError(err).Info("Error during object sync")
+
+				if retryfile == nil {
+					if _, err := os.Stat(retrydir); os.IsNotExist(err) {
+						err := os.MkdirAll(retrydir, 0775)
+						if err != nil {
+							mylog.WithError(err).Info("Error creating retry dir")
+							break
+						}
+					}
+					var err error
+					retryfile, err = os.Create(retryfilename + ".inprogress")
+					if err != nil {
+						mylog.WithError(err).Info("Error creating retry file")
+						retryfile = nil
+					} else {
+						fmt.Fprintf(retryfile, "project:%s\n", d.d.project)
+					}
+				}
 				if retryfile != nil {
-					// If we still had any entries we need to retry, rename the retryfile
-					err := retryfile.Close()
-					if err != nil {
-						mylog.WithError(err).Info("Error storing async retry queue")
-						return
-					}
-					err = os.Rename(retryfilename+".inprogress", retryfilename)
-					if err != nil {
-						mylog.WithError(err).Info("Error renaming async retry queue")
-						return
-					}
+					fmt.Fprintln(retryfile, nextentry)
 				}
 
-				return
+				mylog.WithError(res).Info("Error syncing object to peer, queued for async")
 			}
 
-			// We have no object right now, but more might be inbound.
-			// Wait until we get notified the queues have changed, and then retry
-			mylog.Debug("Nothing to sync out, but not done. Wait")
-			d.objectSyncNewObjects.Wait()
-			d.objectSyncNewObjects.L.Unlock()
-			mylog.Debug("We were kicked")
-			continue
-		}
-
-		mylog := mylog.WithField("objectid", nextentry)
-		mylog.Debug("Pushing single object to peer")
-
-		res := d.pushSingleObject(peerid, nextentry)
-		mylog.Debug("Results are in", "result", res)
-		if res == nil {
-			mylog.Debug("Object synced")
-		} else {
-			mylog.WithError(err).Info("Error during object sync")
-
-			if retryfile == nil {
-				if _, err := os.Stat(retrydir); os.IsNotExist(err) {
-					err := os.MkdirAll(retrydir, 0775)
-					if err != nil {
-						mylog.WithError(err).Info("Error creating retry dir")
-						break
-					}
-				}
-				var err error
-				retryfile, err = os.Create(retryfilename + ".inprogress")
-				if err != nil {
-					mylog.WithError(err).Info("Error creating retry file")
-					retryfile = nil
-				} else {
-					fmt.Fprintf(retryfile, "project:%s\n", d.d.project)
-				}
+			err = d.dbReportObject(nextentry, peerid, res == nil)
+			if err != nil {
+				d.errchan <- err
 			}
-			if retryfile != nil {
-				fmt.Fprintln(retryfile, nextentry)
-			}
-
-			mylog.WithError(res).Info("Error syncing object to peer, queued for async")
-		}
-
-		err = d.dbReportObject(nextentry, peerid, res == nil)
-		if err != nil {
-			d.errchan <- err
 		}
 	}
 }
@@ -461,9 +463,9 @@ func (d *clusterStorageProjectPushDriverInstance) dbAddObject(objid storage.Obje
 	return err
 }
 
-func (d *clusterStorageProjectPushDriverInstance) dbGetNextObject(nodeid uint64) (storage.ObjectID, error) {
+func (d *clusterStorageProjectPushDriverInstance) dbGetNextObjects(nodeid uint64) ([]storage.ObjectID, error) {
 	if d.hasFailed {
-		return storage.ZeroID, errors.New("Object sync has already failed")
+		return []storage.ObjectID{storage.ZeroID}, errors.New("Object sync has already failed")
 	}
 
 	d.objectSyncMux.Lock()
@@ -471,36 +473,44 @@ func (d *clusterStorageProjectPushDriverInstance) dbGetNextObject(nodeid uint64)
 
 	tx, err := d.objectSyncDB.Begin()
 	if err != nil {
-		return storage.ZeroID, err
+		return []storage.ObjectID{storage.ZeroID}, err
 	}
-	row := tx.QueryRow("SELECT objectid FROM " + d.dbPeerColumn(nodeid) + " LIMIT 1")
-	var objidS string
-	err = row.Scan(&objidS)
-	if err == sql.ErrNoRows {
-		tx.Rollback()
-		return storage.ZeroID, nil
-	}
+	rows, err := tx.Query("SELECT objectid FROM " + d.dbPeerColumn(nodeid) + " LIMIT 1000")
 	if err != nil {
-		tx.Rollback()
-		return storage.ZeroID, err
+		return []storage.ObjectID{storage.ZeroID}, err
 	}
-	res, err := tx.Exec(
-		`DELETE FROM `+d.dbPeerColumn(nodeid)+` WHERE objectid=$1`, objidS,
-	)
-	if err != nil {
-		tx.Rollback()
-		return storage.ZeroID, err
+	defer rows.Close()
+	var objectIDs []storage.ObjectID
+	for rows.Next() {
+		var objidS string
+		err = rows.Scan(&objidS)
+		if err == sql.ErrNoRows {
+			tx.Rollback()
+			return []storage.ObjectID{storage.ZeroID}, nil
+		}
+		if err != nil {
+			tx.Rollback()
+			return []storage.ObjectID{storage.ZeroID}, err
+		}
+		res, err := tx.Exec(
+			`DELETE FROM `+d.dbPeerColumn(nodeid)+` WHERE objectid=$1`, objidS,
+		)
+		if err != nil {
+			tx.Rollback()
+			return []storage.ObjectID{storage.ZeroID}, err
+		}
+		aff, err := res.RowsAffected()
+		if err != nil {
+			tx.Rollback()
+			return []storage.ObjectID{storage.ZeroID}, err
+		}
+		if aff != 1 {
+			tx.Rollback()
+			return []storage.ObjectID{storage.ZeroID}, errors.Errorf("Invalid number of rows affected in delete: %d != 1", aff)
+		}
+		objectIDs = append(objectIDs, storage.ObjectID(objidS))
 	}
-	aff, err := res.RowsAffected()
-	if err != nil {
-		tx.Rollback()
-		return storage.ZeroID, err
-	}
-	if aff != 1 {
-		tx.Rollback()
-		return storage.ZeroID, errors.Errorf("Invalid number of rows affected in delete: %d != 1", aff)
-	}
-	return storage.ObjectID(objidS), tx.Commit()
+	return objectIDs, tx.Commit()
 }
 
 func (d *clusterStorageProjectPushDriverInstance) dbReportObject(objid storage.ObjectID, nodeid uint64, success bool) error {
