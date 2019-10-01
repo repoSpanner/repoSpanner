@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"strings"
 	"sync"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -482,7 +483,7 @@ func (d *clusterStorageProjectPushDriverInstance) dbGetNextObjects(nodeid uint64
 		return []storage.ObjectID{storage.ZeroID}, err
 	}
 	defer rows.Close()
-	var objectIDs []storage.ObjectID
+	var objectIDStrings []string
 	for rows.Next() {
 		var objidS string
 		err = rows.Scan(&objidS)
@@ -494,9 +495,13 @@ func (d *clusterStorageProjectPushDriverInstance) dbGetNextObjects(nodeid uint64
 			tx.Rollback()
 			return []storage.ObjectID{storage.ZeroID}, err
 		}
+		objectIDStrings = append(objectIDStrings, objidS)
+	}
+
+	if len(objectIDStrings) > 0 {
+		deleteString := strings.Join(objectIDStrings, "\", \"")
 		res, err := tx.Exec(
-			`DELETE FROM `+d.dbPeerColumn(nodeid)+` WHERE objectid=$1`, objidS,
-		)
+			`DELETE FROM `+d.dbPeerColumn(nodeid)+` WHERE objectid IN ("`+deleteString+`")`)
 		if err != nil {
 			tx.Rollback()
 			return []storage.ObjectID{storage.ZeroID}, err
@@ -506,11 +511,15 @@ func (d *clusterStorageProjectPushDriverInstance) dbGetNextObjects(nodeid uint64
 			tx.Rollback()
 			return []storage.ObjectID{storage.ZeroID}, err
 		}
-		if aff != 1 {
+		if aff != int64(len(objectIDStrings)) {
 			tx.Rollback()
-			return []storage.ObjectID{storage.ZeroID}, errors.Errorf("Invalid number of rows affected in delete: %d != 1", aff)
+			return []storage.ObjectID{storage.ZeroID}, errors.Errorf("Invalid number of rows affected in delete: %d != %d", aff, len(objectIDStrings))
 		}
-		objectIDs = append(objectIDs, storage.ObjectID(objidS))
+	}
+
+	var objectIDs []storage.ObjectID
+	for _, oid := range objectIDStrings {
+		objectIDs = append(objectIDs, storage.ObjectID(oid))
 	}
 	return objectIDs, tx.Commit()
 }
