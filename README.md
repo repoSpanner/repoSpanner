@@ -86,6 +86,20 @@ To run the full test suite, run from the main directory:
 
     $ go test ./...
 
+repoSpanner has an optional inbuilt profiler that can be enabled at compile
+time. If you wish to use it, compile repoSpanner with the prof tag, like this:
+
+	$ ./build.sh -tags prof
+
+When repoSpanner starts, it will print a log message telling you how you
+can access the profiling data, for example:
+
+	RUNNING PROFILING ON  0.0.0.0:8444
+
+You can use `pprof` to interpret the data:
+
+	go tool pprof http://dev.example.com:8444
+
 ## Tests
 
 The project comes with a decent functional test suite.  Explore the
