@@ -262,6 +262,8 @@ func (d *clusterStorageProjectPushDriverInstance) pushSingleObject(peerid uint64
 	)
 }
 
+// Sync all objects queued in the database for the given peer. peerid is used to specify which peer
+// to sync.
 func (d *clusterStorageProjectPushDriverInstance) runPeerSyncer(peerid uint64) {
 	d.syncersWg.Add(1)
 	defer d.syncersWg.Done()
