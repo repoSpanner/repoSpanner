@@ -34,6 +34,7 @@ func (d *clusterStorageDriverInstance) GetProjectStorage(project string) storage
 	}
 }
 
+// This is used to prepare the storage driver for pushing objects
 type clusterStorageProjectDriverInstance struct {
 	d       *clusterStorageDriverInstance
 	project string
@@ -65,6 +66,7 @@ type clusterStorageProjectPushDriverInstance struct {
 	innerPusher storage.ProjectStoragePushDriver
 }
 
+// This is an object that is written to disk.
 type clusterStorageDriverObject struct {
 	driver     *clusterStorageProjectDriverInstance
 	objectid   storage.ObjectID
@@ -73,6 +75,7 @@ type clusterStorageDriverObject struct {
 	body       io.ReadCloser
 }
 
+// This is an object that is currently being written to disk.
 type clusterStorageDriverStagedObject struct {
 	driver  *clusterStorageProjectPushDriverInstance
 	inner   storage.StagedObject
