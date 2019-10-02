@@ -463,6 +463,8 @@ func (d *clusterStorageProjectPushDriverInstance) dbAddObject(objid storage.Obje
 	return err
 }
 
+// Retrieve a list of ObjectIDs that need to be synced with the node identified by the given nodeid.
+// The object IDs will be retrieved from the node's database table, deleted, and then returned.
 func (d *clusterStorageProjectPushDriverInstance) dbGetNextObjects(nodeid uint64) ([]storage.ObjectID, error) {
 	if d.hasFailed {
 		return []storage.ObjectID{storage.ZeroID}, errors.New("Object sync has already failed")
