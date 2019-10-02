@@ -26,6 +26,7 @@ settings pertain to customizing the build or installation.
 * ```repospanner_version``` (str) - Which git ref to install. Defaults to ```"master"```.
 * ```repospanner_build_deps``` (seq of str) - A list of build dependencies for building repoSpanner
   on each node. Defaults to ```["golang"]```.
+* ```repospanner_build_flags``` (str) - Flags to pass to repoSpanner's ```build.sh```. Defaults to ```""```.
 * ```repospanner_clone_path``` (str) - A filesystem path in which to clone the repoSpanner sources.
   Defaults to ```"/tmp/repospanner"```.
 
