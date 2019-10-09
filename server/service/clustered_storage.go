@@ -53,14 +53,14 @@ type clusterStorageProjectPushDriverInstance struct {
 	errchan            chan error
 	outstandingobjects *sync.WaitGroup
 
-	objectSyncMux          *sync.Mutex
-	objectSyncPeers        []uint64
-	objectSyncDBPath       string
-	objectSyncDB           *sql.DB
-	objectSyncAllSubmitted bool
-	objectSyncNewObjects   *sync.Cond
-	syncersWg              *sync.WaitGroup
-	hasFailed              bool
+	objectSyncMux   *sync.Mutex
+	objectSyncPeers []uint64
+	// These are queues that we should push ObjectIDs into when we want to tell nodes to sync them
+	objectSyncPeerQueues []chan<- storage.ObjectID
+	objectSyncDBPath     string
+	objectSyncDB         *sql.DB
+	syncersWg            *sync.WaitGroup
+	hasFailed            bool
 
 	innerPusher storage.ProjectStoragePushDriver
 }
@@ -263,8 +263,8 @@ func (d *clusterStorageProjectPushDriverInstance) pushSingleObject(peerid uint64
 }
 
 // Sync all objects queued in the database for the given peer. peerid is used to specify which peer
-// to sync.
-func (d *clusterStorageProjectPushDriverInstance) runPeerSyncer(peerid uint64) {
+// to sync. taskQueue is a chan of ObjectIDs that need to be synced with this peer.
+func (d *clusterStorageProjectPushDriverInstance) runPeerSyncer(peerid uint64, taskQueue <-chan storage.ObjectID) {
 	d.syncersWg.Add(1)
 	defer d.syncersWg.Done()
 
@@ -286,56 +286,15 @@ func (d *clusterStorageProjectPushDriverInstance) runPeerSyncer(peerid uint64) {
 
 	mylog.Debug("Starting peer syncer")
 
-	for {
-		nextentry, err := d.dbGetNextObject(peerid)
-		if err != nil {
-			d.errchan <- err
-			return
-		}
-
+	for nextentry := range taskQueue {
 		mylog.Debug("Attempted to get an entry to sync")
-
-		if nextentry == storage.ZeroID {
-			// Nothing in the queue for us at this moment
-			d.objectSyncNewObjects.L.Lock()
-			if d.objectSyncAllSubmitted {
-				d.objectSyncNewObjects.L.Unlock()
-				mylog.Debug("We have synced everything out")
-
-				// We have been told we are all done.
-
-				if retryfile != nil {
-					// If we still had any entries we need to retry, rename the retryfile
-					err := retryfile.Close()
-					if err != nil {
-						mylog.WithError(err).Info("Error storing async retry queue")
-						return
-					}
-					err = os.Rename(retryfilename+".inprogress", retryfilename)
-					if err != nil {
-						mylog.WithError(err).Info("Error renaming async retry queue")
-						return
-					}
-				}
-
-				return
-			}
-
-			// We have no object right now, but more might be inbound.
-			// Wait until we get notified the queues have changed, and then retry
-			mylog.Debug("Nothing to sync out, but not done. Wait")
-			d.objectSyncNewObjects.Wait()
-			d.objectSyncNewObjects.L.Unlock()
-			mylog.Debug("We were kicked")
-			continue
-		}
 
 		mylog := mylog.WithField("objectid", nextentry)
 		mylog.Debug("Pushing single object to peer")
 
-		res := d.pushSingleObject(peerid, nextentry)
-		mylog.Debug("Results are in", "result", res)
-		if res == nil {
+		err := d.pushSingleObject(peerid, nextentry)
+		mylog.Debug("Results are in", "result", err)
+		if err == nil {
 			mylog.Debug("Object synced")
 		} else {
 			mylog.WithError(err).Info("Error during object sync")
@@ -361,12 +320,30 @@ func (d *clusterStorageProjectPushDriverInstance) runPeerSyncer(peerid uint64) {
 				fmt.Fprintln(retryfile, nextentry)
 			}
 
-			mylog.WithError(res).Info("Error syncing object to peer, queued for async")
+			mylog.WithError(err).Info("Error syncing object to peer, queued for async")
 		}
 
-		err = d.dbReportObject(nextentry, peerid, res == nil)
+		err = d.dbReportObject(nextentry, peerid, err == nil)
 		if err != nil {
 			d.errchan <- err
+		}
+	}
+
+	// We are done with the queue
+	mylog.Debug("We have synced everything out")
+
+	// We have been told we are all done.
+
+	if retryfile != nil {
+		// If we still had any entries we need to retry, rename the retryfile
+		err := retryfile.Close()
+		if err != nil {
+			mylog.WithError(err).Info("Error storing async retry queue")
+			return
+		}
+		err = os.Rename(retryfilename+".inprogress", retryfilename)
+		if err != nil {
+			mylog.WithError(err).Info("Error renaming async retry queue")
 		}
 	}
 }
@@ -396,12 +373,12 @@ func (d *clusterStorageProjectPushDriverInstance) dbPeerColumn(peerid uint64) st
 	return "node_" + strconv.Itoa(int(peerid)) + "_queue"
 }
 
-func (d *clusterStorageProjectPushDriverInstance) dbAddPeer(peerid uint64) error {
-	_, err := d.objectSyncDB.Exec(
-		`CREATE TABLE ` + d.dbPeerColumn(peerid) + ` (objectid TEXT PRIMARY KEY NOT NULL)`,
-	)
+func (d *clusterStorageProjectPushDriverInstance) addPeer(peerid uint64) <-chan storage.ObjectID {
 	d.objectSyncPeers = append(d.objectSyncPeers, peerid)
-	return errors.Wrap(err, "Error creating peer table "+d.dbPeerColumn(peerid))
+	peerQueuePath := path.Join(d.d.d.cfg.statestore.directory, "objectsyncs", fmt.Sprintf("%s_%d.queue", d.pushuuid, peerid))
+	send, recv := NewObjectIDBufferedChan(peerQueuePath, d.errchan)
+	d.objectSyncPeerQueues = append(d.objectSyncPeerQueues, send)
+	return recv
 }
 
 func (d *clusterStorageProjectPushDriverInstance) dbAddObject(objid storage.ObjectID) error {
@@ -446,63 +423,11 @@ func (d *clusterStorageProjectPushDriverInstance) dbAddObject(objid storage.Obje
 		"neededpeers": neededpeers,
 		"numpeers":    numpeers,
 	}).Debug("Inserted object into syncstatus")
-	for _, peerid := range d.objectSyncPeers {
-		_, err := tx.Exec(
-			`INSERT INTO `+d.dbPeerColumn(peerid)+` (objectid) VALUES ($1)`,
-			objid,
-		)
-		if err != nil {
-			tx.Rollback()
-			return errors.Wrap(err, "Error inserting object into peer column")
-		}
+	for _, taskQueue := range d.objectSyncPeerQueues {
+		taskQueue <- objid
 	}
 	err = tx.Commit()
-	d.d.d.cfg.log.Debug("Kicking syncers")
-	d.objectSyncNewObjects.Broadcast()
-	d.d.d.cfg.log.Debug("Syncers kicked")
 	return err
-}
-
-func (d *clusterStorageProjectPushDriverInstance) dbGetNextObject(nodeid uint64) (storage.ObjectID, error) {
-	if d.hasFailed {
-		return storage.ZeroID, errors.New("Object sync has already failed")
-	}
-
-	d.objectSyncMux.Lock()
-	defer d.objectSyncMux.Unlock()
-
-	tx, err := d.objectSyncDB.Begin()
-	if err != nil {
-		return storage.ZeroID, err
-	}
-	row := tx.QueryRow("SELECT objectid FROM " + d.dbPeerColumn(nodeid) + " LIMIT 1")
-	var objidS string
-	err = row.Scan(&objidS)
-	if err == sql.ErrNoRows {
-		tx.Rollback()
-		return storage.ZeroID, nil
-	}
-	if err != nil {
-		tx.Rollback()
-		return storage.ZeroID, err
-	}
-	res, err := tx.Exec(
-		`DELETE FROM `+d.dbPeerColumn(nodeid)+` WHERE objectid=$1`, objidS,
-	)
-	if err != nil {
-		tx.Rollback()
-		return storage.ZeroID, err
-	}
-	aff, err := res.RowsAffected()
-	if err != nil {
-		tx.Rollback()
-		return storage.ZeroID, err
-	}
-	if aff != 1 {
-		tx.Rollback()
-		return storage.ZeroID, errors.Errorf("Invalid number of rows affected in delete: %d != 1", aff)
-	}
-	return storage.ObjectID(objidS), tx.Commit()
 }
 
 func (d *clusterStorageProjectPushDriverInstance) dbReportObject(objid storage.ObjectID, nodeid uint64, success bool) error {
@@ -599,12 +524,10 @@ func (d *clusterStorageProjectDriverInstance) GetPusher(pushuuid string) storage
 		outstandingobjects: new(sync.WaitGroup),
 		pushuuid:           pushuuid,
 
-		objectSyncAllSubmitted: false,
-		objectSyncPeers:        make([]uint64, 0),
-		objectSyncMux:          new(sync.Mutex),
-		objectSyncDBPath:       dbpath,
-		objectSyncDB:           db,
-		objectSyncNewObjects:   sync.NewCond(new(sync.Mutex)),
+		objectSyncPeers:  make([]uint64, 0),
+		objectSyncMux:    new(sync.Mutex),
+		objectSyncDBPath: dbpath,
+		objectSyncDB:     db,
 
 		syncersWg: new(sync.WaitGroup),
 
@@ -620,11 +543,11 @@ func (d *clusterStorageProjectDriverInstance) GetPusher(pushuuid string) storage
 	for peerid := range d.d.cfg.statestore.Peers {
 		if peerid != d.d.cfg.statestore.NodeID {
 			syncwg.Add(1)
-			inst.dbAddPeer(peerid)
+			peerTaskQueue := inst.addPeer(peerid)
 
 			go func(peerid uint64) {
 				syncwg.Done()
-				inst.runPeerSyncer(peerid)
+				inst.runPeerSyncer(peerid, peerTaskQueue)
 			}(peerid)
 		}
 	}
@@ -658,9 +581,11 @@ func (d *clusterStorageProjectPushDriverInstance) Done() {
 	go func() {
 		d.d.d.cfg.log.Debug("Marking pusher as done")
 
-		d.objectSyncAllSubmitted = true
-		d.objectSyncNewObjects.Broadcast()
-		d.d.d.cfg.log.Debug("Told syncers we submitted everything")
+		for _, taskQueue := range d.objectSyncPeerQueues {
+			// If we don't do this, then the worker goroutines will wait forever for new tasks.
+			// Let's not be so mean to them and do the right thing and let them know we are done.
+			close(taskQueue)
+		}
 
 		d.outstandingobjects.Wait()
 		d.d.d.cfg.log.Debug("Required set of nodes have objects")
