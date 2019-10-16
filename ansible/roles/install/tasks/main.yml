@@ -20,7 +20,7 @@
         version: "{{ repospanner_version }}"
 
     - name: Build repospanner
-      command: "{{ repospanner_clone_path }}/build.sh"
+      command: "{{ repospanner_clone_path }}/build.sh {{ repospanner_build_flags }}"
       args:
         chdir: "{{ repospanner_clone_path }}"
 

@@ -4,6 +4,8 @@
 # A list of build dependencies needed for repospanner
 repospanner_build_deps:
   - golang
+# Flags to pass to repospanner's build.sh
+repospanner_build_flags: ""
 # Where to clone the repo to
 repospanner_clone_path: /tmp/repospanner
 # Where to install repospanner (it will go into a bin/ folder inside this path, so by default it
