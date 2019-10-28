@@ -9,7 +9,6 @@ import (
 	"io"
 )
 
-type Object []byte
 type ObjectID string
 
 const ZeroID ObjectID = "0000000000000000000000000000000000000000"
