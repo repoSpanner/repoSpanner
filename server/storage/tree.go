@@ -193,6 +193,8 @@ func (t *treeStorageProjectDriverInstance) ReadObject(objectid ObjectID) (Object
 	if err != nil {
 		return ObjectTypeBad, 0, nil, err
 	}
+	// We are using an InnerReadCloser here to make sure that if the caller closes the returned object, we also
+	// close the underlying file handle, without them having to worry that it's actually two layers of ReadCloser.
 	read := utils.NewInnerReadCloser(r, f, true)
 
 	var hdr string
