@@ -13,6 +13,7 @@ type innerReadCloser struct {
 }
 
 // NewInnerReadCloser returns a new innerReadCloser structure, with the indicated inner and outer readers
+// If set to true, closeOuter will close the outer reader when NewInnerReadCloser.Close() is used.
 // Make sure to read the notes in innerReadCloser before use.
 func NewInnerReadCloser(outer io.ReadCloser, inner io.ReadCloser, closeOuter bool) io.ReadCloser {
 	return &innerReadCloser{outer: outer, inner: inner, closeOuter: closeOuter}

@@ -21,6 +21,13 @@ const (
 	compressMethodZlib                = 2
 )
 
+// treeStorageDriverInstance is the StorageDriver for "tree" storage.
+// This storage driver stores every object of every project in a directory <basedir>/<projectname>/<objid[0:2]>/<objid[2:]><extension>
+// where <basedir> is configured, <projectname> is the project name used for the object, <objid[0:2]> are the first two characters
+// of the hex object ID, <objid[2:]> is the rest of the object ID, and <extension> is either .gz, .xz or nothing, depending on compression
+// configuration.
+// This is a very inefficient storage driver, but hopefully incredibly stable due to its simplicity.
+// When "gz" compression is used, this mostly matches with Git's "loose" object storage.
 type treeStorageDriverInstance struct {
 	dirname        string
 	compressmethod compressMethod
@@ -40,6 +47,9 @@ func newTreeStoreDriver(dir, comp string) (*treeStorageDriverInstance, error) {
 	return inst, nil
 }
 
+// nopWriter is a ReadCloser that ignores the Close() call.
+// It is used to make sure an innerReadCloser can be used if uncompressed storage is used.
+// It is basically a Writer/WriteCloser equivalent to ioutil.NopCloser.
 type nopWriter struct{ w io.Writer }
 
 func (w *nopWriter) Write(buf []byte) (int, error) {
@@ -49,6 +59,7 @@ func (w *nopWriter) Close() error {
 	return nil
 }
 
+// compressExtension returns the file extension to be used for the configured compression method
 func (d *treeStorageDriverInstance) compressExtension() string {
 	if d.compressmethod == compressMethodGzip {
 		return ".gz"
@@ -58,6 +69,7 @@ func (d *treeStorageDriverInstance) compressExtension() string {
 	return ""
 }
 
+// compressReader returns an io.ReadCloser around "r" that reads compressed objects per configuration
 func (d *treeStorageDriverInstance) compressReader(r io.Reader) (io.ReadCloser, error) {
 	if d.compressmethod == compressMethodGzip {
 		return gzip.NewReader(r)
@@ -67,6 +79,7 @@ func (d *treeStorageDriverInstance) compressReader(r io.Reader) (io.ReadCloser, 
 	return ioutil.NopCloser(r), nil
 }
 
+// compressWriter returns an io.ReadWriter around "w" that compresses the object per configuration
 func (d *treeStorageDriverInstance) compressWriter(w io.Writer) io.WriteCloser {
 	if d.compressmethod == compressMethodGzip {
 		return gzip.NewWriter(w)
