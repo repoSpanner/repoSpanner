@@ -32,6 +32,13 @@ To run the full test suite, run from the main directory:
 
     $ go test ./...
 
+### The devel folder
+
+The [devel](devel/) folder contains some scripts that you can use to aid in development of
+repoSpanner. The `build.sh` script uses podman to build a container that can be used to run the
+test suite. `test.sh` is used to run the tests in the container that results from running
+`build.sh`.
+
 ## Contributions
 
 Contributions are most welcome. To send a patch, send a pull request to the project on github.
