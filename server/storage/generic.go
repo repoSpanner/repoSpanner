@@ -24,8 +24,6 @@ func ObjectIDFromRaw(rawid []byte) ObjectID {
 	return ObjectID(hex.EncodeToString(rawid))
 }
 
-type Reference string
-
 // ObjectType represents the type of a Git Object
 // In Pack files, this is represented by 3 bits.
 type ObjectType int
