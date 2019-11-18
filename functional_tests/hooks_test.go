@@ -24,9 +24,8 @@ func performHookTest(t *testing.T, method cloneMethod) {
 	defer testCleanup(t)
 	nodea := nodeNrType(1)
 	nodeb := nodeNrType(2)
-	nodec := nodeNrType(3)
 
-	createNodes(t, nodea, nodeb, nodec)
+	createNodes(t, nodea, nodeb)
 
 	createRepo(t, nodea, "test1", false)
 	runCommand(
@@ -63,7 +62,7 @@ func performHookTest(t *testing.T, method cloneMethod) {
 	runRawCommand(t, "git", wdir, nil, "commit", "-sm", "Writing our tests")
 	runRawCommand(t, "git", wdir, nil, "tag", "-a", "testtag", "-m", "testing")
 	runCommand(
-		t, nodec.Name(),
+		t, nodeb.Name(),
 		"admin", "repo", "edit", "test1", "--hook-pre-receive", "blobs/test-blocking.sh",
 	)
 
@@ -104,7 +103,7 @@ func performHookTest(t *testing.T, method cloneMethod) {
 	}
 
 	runCommand(
-		t, nodec.Name(),
+		t, nodea.Name(),
 		"admin", "repo", "edit", "test1", "--hook-update", "blobs/test.sh",
 	)
 	runCommand(

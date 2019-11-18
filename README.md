@@ -71,84 +71,43 @@ in /etc/repospanner.
 This client will automatically revert to plain git if it determines the repo
 that is being pushed to is not a repospanner repository.
 
-## Development
 
-For development, standard github pull requests are used.
-Most changes do not require special tools other than the standard build
-instructions, however, if you modify any of the protobuf files, you'll need to
-install the protobuf compiler:
+## Operating Repospanner cluster
+### TLS/x509 certificates renewal
+As repospanner uses TLS between all components (server to server, client to server, etc), it's important that you check the default validity of those certificates.
+You can use basic openssl command to check default validity (1y per default):
+```
+openssl x509 -in node1.cluster1.crt -noout -text|grep -A 3 Validity
+        Validity
+            Not Before: Sep 17 13:43:13 2018 GMT
+            Not After : Sep 17 13:43:13 2019 GMT
+        Subject: CN=node1.cluster1.domain.org
+```
 
-    $ dnf install protobuf-devel
+If you have to renew, you'll have to recreate certififcates with same CN but also exact same NodeID (used in repospanner).
+First you have to find the NodeID for that node :
 
-Then run `go generate ./...` to regenerate the built files.
+```
+repospanner ca info /path/to/node1.cluster1.crt 
+Certificate information:
+Subject: node1.cluster1.domain.org
+Certificate type:  Node
+repoSpanner cluster name: domain.org
+repoSpanner region name: cluster1
+repoSpanner Node Name: node1
+repoSpanner Node ID: 2
+```
 
-To run the full test suite, run from the main directory:
+As we have now identified that Node ID is two, we can just issue a new key/crt for that node (you'll have to delete existing .crt/.key file first otherwise repospanner would complain that those already exist with ```panic: Node certificate exists```) :
 
-    $ go test ./...
+```
+repospanner ca node --nodeid 2 --years 30 cluster1 node1
+Done
 
-repoSpanner has an optional inbuilt profiler that can be enabled at compile
-time. If you wish to use it, compile repoSpanner with the prof tag, like this:
+```
+You can now replace on your node and restart repospanner instance
 
-	$ ./build.sh -tags prof
+## Contribute
 
-When repoSpanner starts, it will print a log message telling you how you
-can access the profiling data, for example:
-
-	RUNNING PROFILING ON  0.0.0.0:8444
-
-You can use `pprof` to interpret the data:
-
-	go tool pprof http://dev.example.com:8444
-
-## Tests
-
-The project comes with a decent functional test suite.  Explore the
-`repospanner/functional_tests` to see the variety of tests that you can
-run.
-
-## Contributions
-
-Contributions are most welcome.
-Please make sure to add a `Signed-Off-By` line in your git commit to indicate
-you agree to the Developer Certificate of Origin (DCO) as quoted below.
-To do this, simple add the "-s" flag to your git commit, like: `git commit -s`.
-
-## Developer Certificate of Origin
-
-Developer Certificate of Origin
-Version 1.1
-
-Copyright (C) 2004, 2006 The Linux Foundation and its contributors.
-1 Letterman Drive
-Suite D4700
-San Francisco, CA, 94129
-
-Everyone is permitted to copy and distribute verbatim copies of this
-license document, but changing it is not allowed.
-
-
-Developer's Certificate of Origin 1.1
-
-By making a contribution to this project, I certify that:
-
-(a) The contribution was created in whole or in part by me and I
-    have the right to submit it under the open source license
-    indicated in the file; or
-
-(b) The contribution is based upon previous work that, to the best
-    of my knowledge, is covered under an appropriate open source
-    license and I have the right under that license to submit that
-    work with modifications, whether created in whole or in part
-    by me, under the same open source license (unless I am
-    permitted to submit under a different license), as indicated
-    in the file; or
-
-(c) The contribution was provided directly to me by some other
-    person who certified (a), (b) or (c) and I have not modified
-    it.
-
-(d) I understand and agree that this project and the contribution
-    are public and that a record of the contribution (including all
-    personal information I submit with it, including my sign-off) is
-    maintained indefinitely and may be redistributed consistent with
-    this project or the open source license(s) involved.
+If you would like to get involved in repoSpanner development, take a look at the
+[Contribution guide](devel/CONTRIBUTE.md).
