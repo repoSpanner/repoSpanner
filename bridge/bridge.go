@@ -3,6 +3,7 @@ package bridge
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -77,7 +78,7 @@ func bridge(r *http.Request) {
 	if resp.StatusCode != 200 {
 		exitWithError(
 			"Server error",
-			"statuscode", string(resp.StatusCode),
+			"statuscode", fmt.Sprint(resp.StatusCode),
 		)
 	}
 	_, err = io.Copy(os.Stdout, resp.Body)
