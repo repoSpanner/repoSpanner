@@ -5,8 +5,8 @@ import (
 	"log"
 	"os"
 
-	"repospanner.org/repospanner/bridge"
-	"repospanner.org/repospanner/server/constants"
+	"github.com/repoSpanner/repoSpanner/bridge"
+	"github.com/repoSpanner/repoSpanner/server/constants"
 )
 
 func main() {

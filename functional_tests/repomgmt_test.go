@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"repospanner.org/repospanner/server/datastructures"
+	"github.com/repoSpanner/repoSpanner/server/datastructures"
 )
 
 type testRepoInfo struct {

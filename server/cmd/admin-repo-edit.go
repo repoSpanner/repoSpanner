@@ -7,8 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"repospanner.org/repospanner/server/datastructures"
-	"repospanner.org/repospanner/server/storage"
+	"github.com/repoSpanner/repoSpanner/server/datastructures"
+	"github.com/repoSpanner/repoSpanner/server/storage"
 )
 
 var adminEditRepoCmd = &cobra.Command{

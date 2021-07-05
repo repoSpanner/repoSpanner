@@ -1,4 +1,4 @@
-module repospanner.org/repospanner
+module github.com/repoSpanner/repoSpanner
 
 require (
 	github.com/coreos/etcd v3.3.12+incompatible

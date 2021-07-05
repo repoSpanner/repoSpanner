@@ -15,9 +15,9 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 
-	"repospanner.org/repospanner/server/datastructures"
-	pb "repospanner.org/repospanner/server/protobuf"
-	"repospanner.org/repospanner/server/storage"
+	"github.com/repoSpanner/repoSpanner/server/datastructures"
+	pb "github.com/repoSpanner/repoSpanner/server/protobuf"
+	"github.com/repoSpanner/repoSpanner/server/storage"
 )
 
 type hookType string

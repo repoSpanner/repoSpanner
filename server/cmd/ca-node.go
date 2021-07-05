@@ -10,7 +10,7 @@ import (
 	"path"
 	"time"
 
-	"repospanner.org/repospanner/server/constants"
+	"github.com/repoSpanner/repoSpanner/server/constants"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"

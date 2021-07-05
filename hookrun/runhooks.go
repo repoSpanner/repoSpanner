@@ -13,11 +13,11 @@ import (
 	"strconv"
 	"strings"
 
-	"repospanner.org/repospanner/server/storage"
+	"github.com/repoSpanner/repoSpanner/server/storage"
 
 	"github.com/pkg/errors"
 	"golang.org/x/net/http2"
-	"repospanner.org/repospanner/server/datastructures"
+	"github.com/repoSpanner/repoSpanner/server/datastructures"
 )
 
 func getHookArgs(request datastructures.HookRunRequest, hookname, branch string, req [2]string) ([]string, io.Reader) {

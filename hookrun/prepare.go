@@ -9,9 +9,9 @@ import (
 	"path"
 
 	"github.com/pkg/errors"
-	"repospanner.org/repospanner/server/constants"
-	"repospanner.org/repospanner/server/datastructures"
-	"repospanner.org/repospanner/server/storage"
+	"github.com/repoSpanner/repoSpanner/server/constants"
+	"github.com/repoSpanner/repoSpanner/server/datastructures"
+	"github.com/repoSpanner/repoSpanner/server/storage"
 )
 
 func prepareRequest() (*datastructures.HookRunRequest, error) {

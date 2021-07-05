@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"repospanner.org/repospanner/server/datastructures"
+	"github.com/repoSpanner/repoSpanner/server/datastructures"
 )
 
 var adminDeleteRepoCmd = &cobra.Command{
