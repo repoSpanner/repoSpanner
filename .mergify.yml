@@ -7,7 +7,4 @@ pull_request_rules:
   conditions:
   - label!=no-mergify
   - '#approved-reviews-by>=1'
-  - status-success=CodeFactor
-  - status-success=DCO
-  - status-success=continuous-integration/travis-ci/pr
   name: default
