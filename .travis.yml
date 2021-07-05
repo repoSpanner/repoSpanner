@@ -1,20 +1,19 @@
 language: go
-# We modify /etc/hosts	sudo: false
-sudo: true
 git:
   # We need the full repo for the metatest
   depth: false
 go:
   - "1.12"
+  - "1.16"
   - master
 env:
   global:
     - GO111MODULE=on
-  matrix:
+  jobs:
     - REPOSPANNER_FUNCTIONAL_CLONE_METHOD=indep
     - REPOSPANNER_FUNCTIONAL_CLONE_METHOD=ssh
     - REPOSPANNER_FUNCTIONAL_CLONE_METHOD=https
-matrix:
+jobs:
   fast_finish: true
   include:
     - env:

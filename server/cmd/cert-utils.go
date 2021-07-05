@@ -120,8 +120,6 @@ func signCertificate(cert *x509.Certificate) ([]byte, []byte, error) {
 	// Override template fields
 	cert.BasicConstraintsValid = true
 	cert.IsCA = false
-	cert.MaxPathLen = 0
-	cert.MaxPathLenZero = true
 	cert.KeyUsage = x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment
 
 	if cert.SerialNumber == nil {
