@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"repospanner.org/repospanner/server/datastructures"
+	"github.com/repoSpanner/repoSpanner/server/datastructures"
 )
 
 var adminListReposCmd = &cobra.Command{

@@ -1,7 +1,7 @@
 package datastructures
 
 import (
-	pb "repospanner.org/repospanner/server/protobuf"
+	pb "github.com/repoSpanner/repoSpanner/server/protobuf"
 )
 
 type RepoRequestInfo struct {

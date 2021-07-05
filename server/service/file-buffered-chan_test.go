@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"repospanner.org/repospanner/server/storage"
+	"github.com/repoSpanner/repoSpanner/server/storage"
 )
 
 // Test that error handling works appropriately if the tempfile path does not exist

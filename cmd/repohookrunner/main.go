@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"repospanner.org/repospanner/hookrun"
+	"github.com/repoSpanner/repoSpanner/hookrun"
 )
 
 func main() {

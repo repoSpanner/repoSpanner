@@ -5,8 +5,8 @@ package main
 import (
 	"log"
 
-	"repospanner.org/repospanner/server/cmd"
-	"repospanner.org/repospanner/server/constants"
+	"github.com/repoSpanner/repoSpanner/server/cmd"
+	"github.com/repoSpanner/repoSpanner/server/constants"
 )
 
 func main() {

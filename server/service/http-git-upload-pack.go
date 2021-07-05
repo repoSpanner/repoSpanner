@@ -9,7 +9,7 @@ import (
 	"net/http"
 
 	"github.com/sirupsen/logrus"
-	"repospanner.org/repospanner/server/storage"
+	"github.com/repoSpanner/repoSpanner/server/storage"
 )
 
 func maybeSendReply(ctx context.Context, reply []byte, stateless bool, replies [][]byte, rw io.Writer) [][]byte {
