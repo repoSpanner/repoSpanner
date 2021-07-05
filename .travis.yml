@@ -27,7 +27,7 @@ matrix:
     - env:
       - REPOSPANNER_FUNCTIONAL_CLONE_METHOD=https EXTRATAGS=stress
     - go: master
-go_import_path: repospanner.org/repospanner
+go_import_path: github.com/repoSpanner/repoSpanner
 before_script:
 - echo "127.0.0.1   node1.localhost.localdomain node2.localhost.localdomain node3.localhost.localdomain" | sudo tee -a /etc/hosts
 script:

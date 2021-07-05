@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 
-	"repospanner.org/repospanner/server/constants"
+	"github.com/repoSpanner/repoSpanner/server/constants"
 
 	"github.com/spf13/cobra"
 )

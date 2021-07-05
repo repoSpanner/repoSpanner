@@ -10,7 +10,7 @@ import (
 	"strings"
 	"syscall"
 
-	"repospanner.org/repospanner/server/storage"
+	"github.com/repoSpanner/repoSpanner/server/storage"
 )
 
 type commitInfo struct {

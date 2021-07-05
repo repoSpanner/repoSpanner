@@ -14,7 +14,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"repospanner.org/repospanner/server/storage"
+	"github.com/repoSpanner/repoSpanner/server/storage"
 )
 
 const maxAttempts = 3

@@ -22,9 +22,9 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
-	"repospanner.org/repospanner/server/constants"
-	"repospanner.org/repospanner/server/storage"
-	"repospanner.org/repospanner/server/utils"
+	"github.com/repoSpanner/repoSpanner/server/constants"
+	"github.com/repoSpanner/repoSpanner/server/storage"
+	"github.com/repoSpanner/repoSpanner/server/utils"
 )
 
 func getCertPoolFromFile(pemfile string) (*x509.CertPool, error) {

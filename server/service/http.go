@@ -10,9 +10,9 @@ import (
 	"strings"
 
 	"github.com/sirupsen/logrus"
-	"repospanner.org/repospanner/server/constants"
-	"repospanner.org/repospanner/server/storage"
-	"repospanner.org/repospanner/server/utils"
+	"github.com/repoSpanner/repoSpanner/server/constants"
+	"github.com/repoSpanner/repoSpanner/server/storage"
+	"github.com/repoSpanner/repoSpanner/server/utils"
 )
 
 func (cfg *Service) addSecurityHeaders(w http.ResponseWriter) {

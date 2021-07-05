@@ -10,7 +10,7 @@ import (
 	"path"
 
 	"github.com/pkg/errors"
-	"repospanner.org/repospanner/server/utils"
+	"github.com/repoSpanner/repoSpanner/server/utils"
 )
 
 type compressMethod int

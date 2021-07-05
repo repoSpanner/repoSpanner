@@ -9,7 +9,7 @@ import (
 	"os"
 
 	"github.com/pkg/errors"
-	"repospanner.org/repospanner/server/storage"
+	"github.com/repoSpanner/repoSpanner/server/storage"
 )
 
 type resolveInfo struct {

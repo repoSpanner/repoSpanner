@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"repospanner.org/repospanner/server/constants"
-	"repospanner.org/repospanner/server/storage"
+	"github.com/repoSpanner/repoSpanner/server/constants"
+	"github.com/repoSpanner/repoSpanner/server/storage"
 )
 
 func (cfg *Service) serveGitDiscovery(ctx context.Context, w http.ResponseWriter, r *http.Request, reponame string, fakerefs bool) {

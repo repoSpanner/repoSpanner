@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"time"
 
-	"repospanner.org/repospanner/server/storage"
+	"github.com/repoSpanner/repoSpanner/server/storage"
 )
 
 func NewUpdateRequest(ref, from, to string) *UpdateRequest {

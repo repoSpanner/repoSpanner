@@ -15,8 +15,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"repospanner.org/repospanner/server/constants"
-	"repospanner.org/repospanner/server/service"
+	"github.com/repoSpanner/repoSpanner/server/constants"
+	"github.com/repoSpanner/repoSpanner/server/service"
 )
 
 var caInitCmd = &cobra.Command{

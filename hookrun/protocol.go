@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/pkg/errors"
-	"repospanner.org/repospanner/server/datastructures"
+	"github.com/repoSpanner/repoSpanner/server/datastructures"
 )
 
 type HookServer struct {

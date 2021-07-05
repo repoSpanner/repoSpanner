@@ -15,7 +15,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
-	pb "repospanner.org/repospanner/server/protobuf"
+	pb "github.com/repoSpanner/repoSpanner/server/protobuf"
 )
 
 var errDisconnected = errors.New("Client disconnected during request processing")

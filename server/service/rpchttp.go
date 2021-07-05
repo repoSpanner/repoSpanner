@@ -12,8 +12,8 @@ import (
 	"github.com/coreos/etcd/raft/raftpb"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"repospanner.org/repospanner/server/datastructures"
-	"repospanner.org/repospanner/server/storage"
+	"github.com/repoSpanner/repoSpanner/server/datastructures"
+	"github.com/repoSpanner/repoSpanner/server/storage"
 )
 
 func (cfg *Service) runRPC(errchan chan<- error) {

@@ -18,9 +18,9 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
-	"repospanner.org/repospanner/server/constants"
-	pb "repospanner.org/repospanner/server/protobuf"
-	"repospanner.org/repospanner/server/storage"
+	"github.com/repoSpanner/repoSpanner/server/constants"
+	pb "github.com/repoSpanner/repoSpanner/server/protobuf"
+	"github.com/repoSpanner/repoSpanner/server/storage"
 )
 
 type sideBand byte

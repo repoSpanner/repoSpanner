@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/sirupsen/logrus"
-	"repospanner.org/repospanner/server/constants"
+	"github.com/repoSpanner/repoSpanner/server/constants"
 )
 
 type permissionInfo struct {

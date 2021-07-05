@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"os"
 
-	"repospanner.org/repospanner/server/constants"
+	"github.com/repoSpanner/repoSpanner/server/constants"
 )
 
 var client *http.Client

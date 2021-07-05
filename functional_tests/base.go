@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"repospanner.org/repospanner/server/service"
+	"github.com/repoSpanner/repoSpanner/server/service"
 )
 
 var (

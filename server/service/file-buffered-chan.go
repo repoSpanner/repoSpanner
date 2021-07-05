@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"os"
 
-	"repospanner.org/repospanner/server/storage"
+	"github.com/repoSpanner/repoSpanner/server/storage"
 )
 
 type objectIDBufferedChan struct {

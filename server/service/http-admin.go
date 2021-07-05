@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"repospanner.org/repospanner/server/constants"
-	"repospanner.org/repospanner/server/datastructures"
-	"repospanner.org/repospanner/server/storage"
+	"github.com/repoSpanner/repoSpanner/server/constants"
+	"github.com/repoSpanner/repoSpanner/server/datastructures"
+	"github.com/repoSpanner/repoSpanner/server/storage"
 )
 
 func (cfg *Service) getNodeInfo() datastructures.NodeInfo {

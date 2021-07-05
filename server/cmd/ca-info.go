@@ -7,7 +7,7 @@ import (
 	"io/ioutil"
 
 	"github.com/spf13/cobra"
-	"repospanner.org/repospanner/server/constants"
+	"github.com/repoSpanner/repoSpanner/server/constants"
 )
 
 var caInfoCmd = &cobra.Command{
